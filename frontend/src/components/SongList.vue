@@ -62,10 +62,21 @@ const handleImageError = (e) => {
 }
 
 const getChannelName = (channelId) => {
+  if (Object.values(CHANNELS).some(channel => channel.name === channelId)) {
+    return channelId
+  }
   return CHANNELS[channelId]?.name || 'Unknown'
 }
 
 const getChannelStyle = (channelId) => {
+  const namedChannel = Object.values(CHANNELS).find(channel => channel.name === channelId)
+  if (namedChannel) {
+    return {
+      background: namedChannel.color,
+      color: 'white'
+    }
+  }
+
   const color = CHANNELS[channelId]?.color || '#999'
   return {
     background: color,

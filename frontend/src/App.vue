@@ -123,10 +123,19 @@ const tabs = [
   { id: 'mellow', label: 'Mellow Mix' }
 ]
 
+const isChannelMatch = (songChannel, channelId) => {
+  if (!songChannel) {
+    return false
+  }
+
+  const expectedName = channels[channelId]?.name
+  return songChannel === channelId || songChannel === expectedName
+}
+
 const currentSongs = computed(() => {
   const songs = {}
   Object.keys(channels).forEach(channelId => {
-    const channelSongs = allSongs.value.filter(s => s.channel === channelId)
+    const channelSongs = allSongs.value.filter(s => isChannelMatch(s.channel, channelId))
     songs[channelId] = channelSongs.length > 0
       ? channelSongs.reduce((latest, song) =>
           new Date(song.lastPlayed) > new Date(latest.lastPlayed) ? song : latest
@@ -140,9 +149,9 @@ const getTabSongs = () => {
   switch (activeTab.value) {
     case 'all': return allSongs.value
     case 'recent': return recentSongs.value
-    case 'main': return allSongs.value.filter(s => s.channel === '0')
-    case 'rock': return allSongs.value.filter(s => s.channel === '1')
-    case 'mellow': return allSongs.value.filter(s => s.channel === '2')
+    case 'main': return allSongs.value.filter(s => isChannelMatch(s.channel, '0'))
+    case 'rock': return allSongs.value.filter(s => isChannelMatch(s.channel, '1'))
+    case 'mellow': return allSongs.value.filter(s => isChannelMatch(s.channel, '2'))
     default: return allSongs.value
   }
 }

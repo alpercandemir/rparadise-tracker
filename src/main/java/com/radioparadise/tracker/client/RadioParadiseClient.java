@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.util.Optional;
+
 @Component
 @Slf4j
 public class RadioParadiseClient {
@@ -18,7 +20,7 @@ public class RadioParadiseClient {
                 .build();
     }
 
-    public RadioParadiseResponse getCurrentSong(String channel) {
+    public Optional<RadioParadiseResponse> getCurrentSong(String channel) {
         try {
             log.debug("Fetching current song from Radio Paradise API (channel: {})", channel);
 
@@ -27,16 +29,21 @@ public class RadioParadiseClient {
                     .retrieve()
                     .body(RadioParadiseResponse.class);
 
+            if (response == null) {
+                log.warn("Empty API response for channel {}", channel);
+                return Optional.empty();
+            }
+
             log.info("Current song on channel {}: {} - {} ({})",
                     channel,
                     response.getArtist(),
                     response.getTitle(),
                     response.getAlbum());
 
-            return response;
+            return Optional.of(response);
         } catch (Exception e) {
             log.error("Error fetching current song from Radio Paradise API for channel {}", channel, e);
-            return null;
+            return Optional.empty();
         }
     }
 }

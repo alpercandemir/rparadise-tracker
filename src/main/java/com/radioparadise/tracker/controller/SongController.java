@@ -1,6 +1,7 @@
 package com.radioparadise.tracker.controller;
 
 import com.radioparadise.tracker.model.Song;
+import com.radioparadise.tracker.model.RadioParadiseChannel;
 import com.radioparadise.tracker.service.SongService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -35,6 +36,7 @@ public class SongController {
 
     @GetMapping("/channel/{channelId}")
     public ResponseEntity<List<Song>> getSongsByChannel(@PathVariable String channelId) {
-        return ResponseEntity.ok(songService.getSongsByChannel(channelId));
+        String validatedChannelId = RadioParadiseChannel.fromId(channelId).id();
+        return ResponseEntity.ok(songService.getSongsByChannel(validatedChannelId));
     }
 }

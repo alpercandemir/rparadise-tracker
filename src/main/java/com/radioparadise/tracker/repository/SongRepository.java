@@ -1,6 +1,7 @@
 package com.radioparadise.tracker.repository;
 
 import com.radioparadise.tracker.model.Song;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -14,7 +15,7 @@ public interface SongRepository extends JpaRepository<Song, Long> {
 
     List<Song> findByChannel(String channel);
 
-    List<Song> findTop20ByOrderByLastPlayedDesc();
+    List<Song> findAllByOrderByLastPlayedDesc(Pageable pageable);
 
-    List<Song> findTop20ByOrderByPlayCountDesc();
+    List<Song> findAllByOrderByPlayCountDesc(Pageable pageable);
 }
