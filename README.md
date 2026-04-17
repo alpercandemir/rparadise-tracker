@@ -74,7 +74,7 @@ All core settings are in `src/main/resources/application.properties`:
 
 ### Dashboard Overview
 
-![Dashboard Overview](docs/screenshots/dashboard-overview.png)
+![Dashboard Overview](docs/screenshots/dashboard-overview.png?v=20260417)
 
 ### Dashboard Mobile View
 
