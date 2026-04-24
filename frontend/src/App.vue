@@ -163,7 +163,10 @@ const getTabTitle = () => {
 
 const loadData = async () => {
   try {
-    loading.value = true
+    // Only show loading state on initial load (when allSongs is empty)
+    if (allSongs.value.length === 0) {
+      loading.value = true
+    }
     const [songs, recent, mostPlayed] = await Promise.all([
       radioParadiseAPI.getAllSongs(),
       radioParadiseAPI.getRecentSongs(),
@@ -172,9 +175,6 @@ const loadData = async () => {
     allSongs.value = songs
     recentSongs.value = recent
     mostPlayedSongs.value = mostPlayed
-    
-    // Add 5 second delay before showing loaded songs
-    await new Promise(resolve => setTimeout(resolve, 5000))
   } catch (error) {
     console.error('Error loading data:', error)
   } finally {
