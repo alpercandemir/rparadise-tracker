@@ -1,6 +1,6 @@
 # Radio Paradise Tracker
 
-A Java 21 + Spring Boot application that continuously tracks currently playing songs on Radio Paradise channels and exposes the data through a REST API.
+A Java 25 + Spring Boot application that continuously tracks currently playing songs on Radio Paradise channels and exposes the data through a REST API.
 
 ## Features
 
@@ -80,13 +80,9 @@ All core settings are in `src/main/resources/application.properties`:
 
 ![Dashboard Mobile](docs/screenshots/dashboard-mobile.png)
 
-### API Response Example (`/api/songs/most-played`)
-
-![API Most Played](docs/screenshots/api-most-played.png)
-
 ## Tech Stack
 
-- Java 21
+- Java 25
 - Spring Boot
 - Spring Data JPA
 - H2 Database
