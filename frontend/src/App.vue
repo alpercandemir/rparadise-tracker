@@ -184,8 +184,8 @@ const loadData = async () => {
 
 onMounted(() => {
   loadData()
-  // Refresh data every 30 seconds
-  setInterval(loadData, 30000)
+  // Refresh data every 5 minutes
+  setInterval(loadData, 300000)
 })
 </script>
 

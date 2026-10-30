@@ -141,7 +141,7 @@ Global CSS variables in `src/style.css`:
 
 ## Auto-Refresh
 
-The dashboard automatically refreshes data every 30 seconds to show the latest songs and statistics.
+The dashboard automatically refreshes data every 5 minutes to show the latest songs and statistics. The backend continues tracking songs every 30 seconds.
 
 ## Browser Compatibility
 

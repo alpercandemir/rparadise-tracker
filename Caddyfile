@@ -1,0 +1,13 @@
+{$SITE_ADDRESS:http://localhost} {
+	encode zstd gzip
+
+	# Health is used inside Docker and is not part of the public API.
+	@actuator path /actuator /actuator/*
+	handle @actuator {
+		respond 404
+	}
+
+	handle {
+		reverse_proxy app:8081
+	}
+}

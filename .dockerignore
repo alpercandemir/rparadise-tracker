@@ -1,0 +1,16 @@
+.git
+.idea
+.vscode
+.superpowers
+.agents
+.codex
+.aws
+.env
+.env.*
+**/.DS_Store
+**/node_modules
+**/dist
+**/target
+**/coverage
+**/*.log
+docs
