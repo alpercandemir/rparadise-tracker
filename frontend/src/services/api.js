@@ -44,7 +44,7 @@ export const radioParadiseAPI = {
 }
 
 export const CHANNELS = {
-    '0': { name: 'Main Mix', color: '#667eea' },
-    '1': { name: 'Mellow Mix', color: '#4facfe' },
-    '2': { name: 'Rock Mix', color: '#f093fb' }
+    '0': { name: 'Main Mix', color: '#5145a6' },
+    '1': { name: 'Mellow Mix', color: '#176d82' },
+    '2': { name: 'Rock Mix', color: '#9a3971' }
 }

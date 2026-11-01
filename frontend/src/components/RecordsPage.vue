@@ -50,6 +50,8 @@
       </label>
     </div>
 
+    <p class="table-hint">Select a track for details. Scroll the table sideways to see all columns.</p>
+
     <div id="records-panel" role="tabpanel" :aria-labelledby="`tab-${state.tab}`" :aria-busy="loading">
       <div v-if="error" class="message error" role="alert">
         <p>{{ error }}</p><button class="control" @click="loadPage">Try again</button>
@@ -76,8 +78,7 @@
             <tr v-for="row in page.items" :key="row.id">
               <td class="cover-cell">
                 <button class="song-link" :aria-label="`View details for ${row.title}`" @click="$emit('select-song', row)">
-                  <img v-if="row.coverUrl" :src="row.coverUrl" :alt="`${row.album} cover`" loading="lazy" @error="$event.target.style.visibility = 'hidden'" />
-                  <span v-else class="cover-placeholder" aria-label="No cover">♪</span>
+                  <AlbumArtwork :src="row.coverUrl" :album="row.album" loading="lazy" class="record-cover" />
                 </button>
               </td>
               <td v-for="column in columns" :key="column.key" :class="{ 'date-cell': column.kind === 'date', 'title-cell': column.key === 'title' }">
@@ -106,6 +107,7 @@
 <script setup>
 defineEmits(['select-song'])
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import AlbumArtwork from './AlbumArtwork.vue'
 import { CHANNELS, radioParadiseAPI } from '../services/api.js'
 import { parseRecordsHash, recordsHash, updateRecordsState, formatRecordTime, getClientTimeZone, pageRange } from '../services/records.js'
 
@@ -209,7 +211,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, .table-scroll:f
 .table-toolbar { padding: 1.25rem 0; color: var(--text-secondary); font-size: .85rem; }
 .table-toolbar label { flex-direction: row; align-items: center; }
 .table-scroll { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 10px; }
-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 th { text-align: left; background: #f5f6fb; white-space: nowrap; padding: .8rem .75rem; }
 .sort-button { border: 0; background: none; color: #4a5568; cursor: pointer; font: inherit; font-weight: 600; display: flex; gap: .5rem; align-items: center; }
 .sort-button span { color: var(--primary); }
@@ -217,8 +219,6 @@ td { padding: .8rem .75rem; border-top: 1px solid #edf2f7; color: #4a5568; min-w
 tbody tr:hover { background: #fafaff; }
 .title-cell { font-weight: 600; color: #2d3748; min-width: 150px; }
 .cover-cell { min-width: 64px; width: 64px; }
-.cover-cell img, .cover-placeholder { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; display: block; }
-.cover-placeholder { background: #edf2ff; text-align: center; line-height: 40px; font-size: 1.5rem; }
 .date-cell { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .channel-label { font-weight: 700; white-space: nowrap; }
 .message { text-align: center; padding: 3rem 1rem; color: var(--text-secondary); border: 1px dashed #d9def2; border-radius: 10px; }
@@ -234,5 +234,18 @@ tbody tr:hover { background: #fafaff; }
   .pagination, .page-controls { justify-content: center; }
   .page-controls { width: 100%; gap: .6rem; }
   .table-toolbar { gap: .5rem; flex-wrap: wrap; }
+}
+.record-cover { width: 44px; height: 44px; border-radius: 7px; }
+.table-hint { color: var(--text-secondary); font-size: .8rem; margin-bottom: .75rem; }
+.table-scroll { max-width: 100%; }
+.record-tab, .control { min-height: 44px; }
+@media (max-width: 640px) {
+  .records-heading { align-items: flex-start; }
+  .filters { padding: .75rem; }
+  .filters label { min-width: 0; flex-basis: 100%; }
+  input, select { width: 100%; min-width: 0; font-size: 1rem; }
+  .search-field { min-width: 0; }
+  .record-tab { padding: .75rem .5rem; font-size: .9rem; }
+  .page-controls { flex-wrap: wrap; }
 }
 </style>

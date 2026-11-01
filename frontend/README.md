@@ -1,152 +1,131 @@
-# Radio Paradise Tracker - Vue.js Frontend
+# Radio Paradise Tracker — Frontend
 
-Beautiful, modern Vue.js 3 dashboard for tracking songs across all Radio Paradise channels.
+Vue 3 + Vite dashboard for the Main, Mellow, and Rock mixes. See the
+[project README](../README.md) for the full Docker stack, screenshots, backend
+setup, and deployment instructions.
 
-## Features
+## Views
 
-✨ **Live Channel Monitoring**
-- Real-time display of currently playing songs on all 3 channels (Main Mix, Rock Mix, Mellow Mix)
-- Beautiful album cover artwork display
-- Live status indicators with pulsing animations
+- **Dashboard** (`/#/`): live channel cards, statistics, channel distribution,
+  a selectable most-played ranking, songs by decade, and All Songs / Recent / channel lists.
+- **Records — All Tracks** (`/#/records`): searchable, sortable track records
+  with artwork, metadata, first/last observed times, and play counts.
+- **Records — Playback History** (`/#/records?tab=plays`): individual observed
+  plays with channel and date filters. History starts with collection; earlier
+  broadcasts are not reconstructed.
+- **Song details**: select a song from a card, list, chart track, or Records
+  title/artwork to open large artwork, channel-specific listening statistics,
+  duration, and lyrics from Radio Paradise when available.
 
-📊 **Analytics & Visualizations**
-- Interactive doughnut chart showing song distribution by channel
-- Horizontal bar chart displaying most played tracks
-- Statistics cards for quick insights
+Records supports search by track, artist, or album, channel filtering, column
+sorting, and 25/50/100 rows per page. Filters, sorting, and pagination are stored
+in the URL so views can be bookmarked and browser Back/Forward works.
+Timestamps include seconds and use the browser's timezone; playback date
+filters use the same timezone. The API returns UTC instants.
 
-🎵 **Song Management**
-- Comprehensive song list with filtering by channel
-- Tab navigation for easy browsing (All Songs, Recent, by Channel)
-- Play count tracking and timestamps
-- Album cover thumbnails
+## Local development
 
-🎨 **Modern Design**
-- Glassmorphism UI with frosted-glass effects
-- Smooth animations and transitions
-- Responsive design for all screen sizes
-- Custom scrollbar styling
-- Gradient backgrounds
-
-## Tech Stack
-
-- **Vue 3** - Progressive JavaScript framework
-- **Vite** - Next-generation frontend tooling
-- **Chart.js** - Beautiful, responsive charts
-- **Axios** - HTTP client for API calls
-- **Inter Font** - Modern typography
-
-## Getting Started
-
-### Prerequisites
-- Node.js (v18 or higher)
-- Backend API running on port 8081
-
-### Installation
+Use Node.js 24 to match CI and Docker, and start the backend on port 8081.
+From the repository root:
 
 ```bash
-# Navigate to frontend directory
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
+npm --prefix frontend ci
+npm --prefix frontend run dev
 ```
 
-The application will be available at **http://localhost:3000**
+Open [http://localhost:3000](http://localhost:3000). Vite proxies `/api` to
+`http://localhost:8081` via `vite.config.js`.
 
-### Build for Production
+Run the frontend checks and production build:
 
 ```bash
-npm run build
+npm --prefix frontend test
+npm --prefix frontend run build
 ```
 
-## Project Structure
+The build writes `frontend/dist`. The Docker build packages these assets into
+Spring Boot so the dashboard and API share one origin.
 
+## Refresh behavior
+
+The dashboard loads lists and charts on entry. Only the three live channel
+cards refresh every 30 seconds; polling pauses while the browser tab is hidden
+or Records is open. Browsing lists, charts, scroll position, focus, and the
+selected modal stay stable. Returning from Records reloads dashboard data.
+
+Records reloads when filters, sorting, or pagination change and has an explicit
+**Refresh** button. Backend caches can retain responses for 30 seconds, so
+refreshing does not guarantee new data immediately. See the
+[caching notes](../README.md#song-details-and-caching).
+
+## Components and services
+
+```text
+frontend/src/
+├── components/
+│   ├── AlbumArtwork.vue       # Shared cover image and failure fallback
+│   ├── CurrentSong.vue        # Live channel card
+│   ├── StatsCard.vue          # Dashboard statistic
+│   ├── ChannelChart.vue       # Channel distribution
+│   ├── MostPlayedChart.vue    # Top tracks by play count
+│   ├── TimelineChart.vue      # Songs by decade
+│   ├── SongList.vue           # Dashboard song lists
+│   ├── RecordsPage.vue        # Track and playback tables
+│   └── SongDetailsModal.vue   # Artwork, statistics, and lyrics
+├── services/
+│   ├── api.js                # Axios API calls and channel definitions
+│   ├── records.js            # URL state, validation, and time formatting
+│   ├── api.test.js
+│   └── records.test.js
+├── App.vue                   # Hash navigation and dashboard state
+├── main.js
+└── style.css                 # Shared styles and CSS variables
 ```
-frontend/
-├── src/
-│   ├── components/
-│   │   ├── CurrentSong.vue       # Now playing card component
-│   │   ├── StatsCard.vue         # Statistics display
-│   │   ├── ChannelChart.vue      # Doughnut chart for channels
-│   │   ├── MostPlayedChart.vue   # Bar chart for top songs
-│   │   └── SongList.vue          # Filterable song list
-│   ├── services/
-│   │   └── api.js                # API service layer
-│   ├── App.vue                   # Main application component
-│   ├── main.js                   # Application entry point
-│   └── style.css                 # Global styles
-├── index.html                    # HTML entry point
-├── vite.config.js               # Vite configuration
-└── package.json                  # Dependencies
 
-```
+The UI uses Chart.js through vue-chartjs, Axios for HTTP, and native system typography. No external font request is required.
 
-## API Integration
+## API integration
 
-The frontend communicates with the Spring Boot backend via proxy:
+| Endpoint | Used for |
+| --- | --- |
+| `/api/songs` | Dashboard lists, statistics, and charts |
+| `/api/songs/current` | Latest observed song per channel |
+| `/api/songs/recent` | Recent list |
+| `/api/songs/most-played` | Most-played ranking |
+| `/api/songs/channel/{id}` | Channel-filtered songs |
+| `/api/songs/{id}` | Song details and persisted lyrics metadata |
+| `/api/records/tracks` | Paginated track records |
+| `/api/records/plays` | Paginated playback history |
 
-- `/api/songs` - Get all tracked songs
-- `/api/songs/channel/{id}` - Get songs by channel
-- `/api/songs/recent` - Get recently played songs
-- `/api/songs/most-played` - Get most played songs
-
-Proxy configuration in `vite.config.js` forwards `/api` requests to `http://localhost:8081`.
-
-## Features Showcase
-
-### Now Playing Cards
-Each channel displays:
-- Channel name with color-coded badge
-- Live indicator with pulsing animation
-- Album cover artwork (with fallback)
-- Song title, artist, and album
-- Play count and last played timestamp
-
-### Charts
-- **Tracks by Channel**: Doughnut chart with channel distribution
-- **Most Played**: Top 10 songs ranked by play count
-
-### Song List
-- Filterable by channel or view all
-- Album cover thumbnails
-- Channel badges with distinct colors
-- Play count indicators
-- Responsive grid layout
+See the [Records API reference](../docs/records-api.md) for supported query
+parameters, validation, response shapes, and timezone behavior.
 
 ## Customization
 
-### Channel Colors
-Modify in `src/services/api.js`:
+Channel names and colors are defined in `src/services/api.js`:
+
 ```javascript
 export const CHANNELS = {
-  '0': { name: 'Main Mix', color: '#667eea' },
-  '1': { name: 'Rock Mix', color: '#f093fb' },
-  '2': { name: 'Mellow Mix', color: '#4facfe' }
+  '0': { name: 'Main Mix', color: '#5145a6' },
+  '1': { name: 'Mellow Mix', color: '#176d82' },
+  '2': { name: 'Rock Mix', color: '#9a3971' }
 }
 ```
 
-### Styling
-Global CSS variables in `src/style.css`:
-```css
-:root {
-  --primary: #667eea;
-  --secondary: #764ba2;
-  --accent: #f093fb;
-  --card-bg: rgba(255, 255, 255, 0.95);
-}
-```
+Shared colors, card backgrounds, shadows, and border radius are CSS variables
+in `src/style.css`; component styles live alongside their templates.
 
-## Auto-Refresh
+## Visual checks and screenshots
 
-The dashboard automatically refreshes data every 5 minutes to show the latest songs and statistics. The backend continues tracking songs every 30 seconds.
+Check desktop and 390px / 320px mobile layouts. Page content should not scroll
+sideways; Records keeps wide columns inside its labeled table scroller. Confirm
+keyboard selection in the most-played ranking and decade controls, modal focus
+and Escape, and Records filtering/pagination. Reduced-motion preferences disable
+chart and CSS animations.
 
-## Browser Compatibility
-
-- Chrome/Edge (latest)
-- Firefox (latest)
-- Safari (latest)
-
-Enjoy tracking your favorite Radio Paradise channels! 🎵✨
+Artwork uses a shared placeholder when a URL is missing or fails. The placeholder
+resets when a new song supplies a different URL. Records and long song lists keep
+lazy loading: before taking a full-page screenshot, scroll through the view,
+allow covers to finish loading, then return to the top. Check that each image has
+loaded or has a visible fallback; a full-page capture alone does not load every
+image below the viewport. Use the current screenshot filenames in `docs/screenshots`.

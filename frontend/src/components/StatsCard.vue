@@ -20,49 +20,11 @@ defineProps({
 </script>
 
 <style scoped>
-.stats-card {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 1.5rem;
-  animation: fadeIn 0.5s ease;
-}
+.stats-card { display: flex; align-items: center; gap: 1rem; padding: 1.1rem 1.5rem; }
+.icon-wrapper { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; flex-shrink: 0; }
+.card-icon { font-size: 1.3rem; }
+.card-title { font-size: .8rem; color: var(--text-secondary); }
+.card-value { font-size: 1.65rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+@media (max-width: 640px) { .stats-card { padding: .8rem .6rem; } .icon-wrapper { display: none; } .card-title { font-size: .72rem; } .card-value { font-size: 1.4rem; } }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.icon-wrapper {
-  width: 60px;
-  height: 60px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.card-icon {
-  font-size: 2rem;
-}
-
-.card-content {
-  flex: 1;
-}
-
-.card-title {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.5rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 500;
-}
-
-.card-value {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
 </style>

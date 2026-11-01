@@ -1,17 +1,22 @@
 # Radio Paradise Tracker
 
-A Java 25 + Spring Boot application that continuously tracks currently playing songs on Radio Paradise channels and exposes the data through a REST API.
+A Java 25 + Spring Boot application with a Vue 3 dashboard that continuously tracks songs on Radio Paradise's Main, Mellow, and Rock mixes, stores observed playback history, and exposes the data through a REST API.
 
 ## Features
 
 - Polls Radio Paradise API on a fixed interval (every 30 seconds by default)
 - Stores songs in a persistent PostgreSQL database
 - Tracks per-song play counts and last played timestamps
+- Persists playback events and a per-channel checkpoint so an ongoing play is not counted again after a restart
 - Exposes browsing endpoints for all, recent, most-played, and channel-filtered songs
-- Includes a Vue.js dashboard frontend with charts and channel-based views
+- Includes a responsive Vue dashboard with live channel cards, channel distribution, most-played tracks, and songs by decade
+- Provides a Records page with searchable, sortable, paginated tracks and playback history, plus channel and history date filters
+- Displays timestamps and interprets history date filters in the browser's timezone
 - Opens song details from live cards, lists, charts, tracks, and playback history, with large artwork,
   listening statistics, and lyrics directly from Radio Paradise when available
 - Uses bounded JVM caches for RP reads and internal list/page responses (30-second TTL)
+- Uses system typography, accessible channel colors, keyboard-accessible track rankings and decade controls, and artwork placeholders for unavailable covers
+- Offers an optional Grafana, Prometheus, and Loki stack for metrics and logs
 
 ## Architecture
 
@@ -19,10 +24,21 @@ A Java 25 + Spring Boot application that continuously tracks currently playing s
   - Scheduled polling with `SongTrackerScheduler`
   - External API integration with `RadioParadiseClient`
   - Persistence via Spring Data JPA + PostgreSQL
+  - Transactional song statistics and playback events with restart-safe deduplication
 - **Frontend:** Vue 3 + Vite (`frontend`)
   - Live dashboard cards for each channel
-  - Most-played and distribution charts
+  - Most-played ranking, channel distribution, and decade charts
   - Filterable song list
+  - Records tables and song-details modal
+
+## Explore the app
+
+- **Dashboard** (`/#/`): see the latest observed song for each channel, browse song lists, and explore charts.
+- **Records → All Tracks** (`/#/records`): search by track, artist, or album; filter by channel; sort columns; and choose 25, 50, or 100 rows per page.
+- **Records → Playback History** (`/#/records?tab=plays`): browse individual observed plays and filter by calendar dates in your timezone. Filters, sorting, and pagination are preserved in the URL.
+- **Song details**: select a song card, list entry, chart track, or Records title/artwork to see larger artwork, channel-specific listening statistics, duration, and available Radio Paradise lyrics.
+
+History records when the tracker first observed a play, within its polling interval. Earlier broadcasts are not reconstructed, and downtime can leave gaps. See the [Records API guide](docs/records-api.md) for query parameters and storage details.
 
 ## Quick Start
 
@@ -34,7 +50,7 @@ Install Docker with the Compose plugin, then run:
 docker compose up -d --build --wait
 ```
 
-Open [http://localhost:8080](http://localhost:8080). The dashboard and `/api` share this address. No local Java, Maven, or Node installation is required: the image builds Vue, runs the backend tests, and packages the frontend into Spring Boot.
+Open [http://localhost:8080](http://localhost:8080). The dashboard and `/api` share this address. No local Java, Maven, or Node installation is required: the image tests and builds Vue, runs the backend tests, and packages the frontend into Spring Boot. PostgreSQL integration tests run separately.
 
 The stack contains:
 
@@ -42,7 +58,7 @@ The stack contains:
 - `postgres`: PostgreSQL 17 with persistent data in the `postgres-data` volume.
 - `caddy`: HTTP entrypoint and automatic HTTPS when configured with a public domain. Certificates persist in `caddy-data`.
 
-Only Caddy publishes ports. PostgreSQL and Spring Boot are accessed over the internal Docker network. Defaults bind the website to localhost. Configuration overrides can be placed in a local `.env` file, starting from `.env.example`.
+Caddy publishes the website ports, and PostgreSQL publishes `127.0.0.1:5432` for local clients or SSH tunneling. Spring Boot is accessible only over the internal Docker network. Defaults bind the website to localhost. Configuration overrides can be placed in a local `.env` file, starting from `.env.example`.
 
 `APP_TIMEZONE` defaults to `Europe/Istanbul` for application logs. Song and playback timestamps use absolute instants stored as PostgreSQL `timestamp with time zone`; the API returns UTC and the UI displays the browser's timezone. Existing databases with timezone-less song columns require the [timestamp migration](docs/records-api.md#storage-and-migration) before starting the updated application.
 
@@ -57,7 +73,7 @@ docker compose down
 
 ### Development without application containers
 
-To run Maven and Vite directly, start only PostgreSQL with the optional host port mapping. Stop a running containerized backend first to avoid duplicate collectors:
+To run Maven and Vite directly, start only PostgreSQL with its loopback host port mapping. Stop a running containerized backend first to avoid duplicate collectors:
 
 ```bash
 docker compose stop app caddy
@@ -79,7 +95,7 @@ This starts PostgreSQL 17 on `localhost:5432` with database, username, and passw
 ./mvnw spring-boot:run
 ```
 
-Backend runs on `http://localhost:8081`.
+Backend runs on `http://localhost:8081`. Use Java 25; the Maven wrapper supplies Maven.
 
 ### 3) Start the frontend (optional dashboard)
 
@@ -88,7 +104,7 @@ npm --prefix frontend install
 npm --prefix frontend run dev
 ```
 
-Frontend runs on `http://localhost:3000`.
+Frontend runs on `http://localhost:3000` and proxies `/api` to the backend. Node.js 24 is used by CI and Docker. See the [frontend guide](frontend/README.md) for components and UI behavior.
 
 ## Deploy to a server
 
@@ -104,7 +120,7 @@ HTTP_PORT=80
 HTTPS_PORT=443
 ```
 
-Use your actual domain and a unique password before the database's first startup. Allow incoming TCP ports 80 and 443 through the server/provider firewall, and restrict SSH access. Keep database and application ports unpublished. Then start the stack:
+Use your actual domain and a unique password before the database's first startup. Allow incoming TCP ports 80 and 443 through the server/provider firewall, and restrict SSH access. Keep PostgreSQL bound to loopback and the application port unpublished. Then start the stack:
 
 ```bash
 docker compose up -d --build --wait
@@ -112,9 +128,11 @@ docker compose up -d --build --wait
 
 Caddy obtains and renews the domain's HTTPS certificate automatically. For an update, pull the latest code and run the same Compose command. For database backups, schedule `pg_dump` and copy the output off the VM; Docker volumes alone are not backups.
 
-The image build runs all backend tests. Internal health is available through `docker compose exec app curl -fsS http://localhost:8081/actuator/health`; Caddy returns 404 for public `/actuator/*` requests. Health checks report failures, while `restart: unless-stopped` restarts containers when their processes exit.
+The image build runs backend unit tests and frontend checks; database integration tests run separately. Internal health is available through `docker compose exec app curl -fsS http://localhost:8081/actuator/health`; Caddy returns 404 for public `/actuator/*` requests. Health checks report failures, while `restart: unless-stopped` restarts containers when their processes exit.
 
-Known tracking limitation: the collector remembers the last song per channel in memory. Restarting the backend can count a currently playing song again; Dockerization does not change that behavior.
+The latest persisted playback event per channel prevents a restart from counting the same ongoing play twice. Full replays during downtime cannot be inferred when the same track is still current after recovery.
+
+For the existing Oracle VM, GHCR image deployment, production approval, and rollback workflow, see the [deployment guide](docs/oracle-deployment.md). The optional monitoring stack and Grafana dashboards are covered in the [observability setup](observability/README.md) and [operations guide](docs/observability.md).
 
 ## API Endpoints
 
@@ -124,6 +142,13 @@ Known tracking limitation: the collector remembers the last song per channel in 
 - `GET /api/songs/recent` - List latest 20 songs by `lastPlayed`
 - `GET /api/songs/most-played` - List top 20 songs by `playCount`
 - `GET /api/songs/channel/{channelId}` - Filter songs by channel (`0`, `1`, `2`)
+- `GET /api/records/tracks` - Search, filter, sort, and paginate saved tracks
+- `GET /api/records/plays` - Search, filter, sort, and paginate observed playback events
+
+Records endpoints accept `page`, `size`, `sort`, `direction`, `q`, and `channel`.
+Playback history also accepts `from`, `to`, and `timeZone`. See the
+[Records API reference](docs/records-api.md) for defaults, response shapes,
+validation, and examples.
 
 ### Channel IDs
 
@@ -210,13 +235,37 @@ docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 
 ## Screenshots
 
+Captured from the updated frontend on November 1, 2026, using the running API. Songs and totals change as collection continues.
+
 ### Dashboard Overview
 
-![Dashboard Overview](docs/screenshots/dashboard-overview.png?v=20260417)
+![Dashboard with live channel cards, statistics, charts, and song lists](docs/screenshots/dashboard-overview.jpg)
+
+### Records — All Tracks
+
+<details>
+<summary>Show searchable tracks and listening statistics</summary>
+
+![Searchable tracks table with channel filters and sortable columns](docs/screenshots/records-tracks.jpg)
+
+</details>
+
+### Playback History
+
+<details>
+<summary>Show playback events and date filters</summary>
+
+![Observed playback events with channel and timezone-aware date filters](docs/screenshots/records-history.jpg)
+
+</details>
+
+### Song Details
+
+![Song details with artwork, listening statistics, and lyrics status](docs/screenshots/song-details.jpg)
 
 ### Dashboard Mobile View
 
-![Dashboard Mobile](docs/screenshots/dashboard-mobile.png)
+<img src="docs/screenshots/dashboard-mobile.jpg" alt="Mobile dashboard with navigation and live channel cards" width="390">
 
 ## Tech Stack
 
