@@ -61,7 +61,10 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes ubuntu@138.2.168.194 'mkdir -p /home/ubuntu/rparadise-tracker/scripts/systemd'
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes compose.production.yaml compose.recording-backfill.yaml ubuntu@138.2.168.194:/home/ubuntu/rparadise-tracker/
-          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes scripts/run-recording-backfill.sh scripts/install-recording-retry.sh ubuntu@138.2.168.194:/home/ubuntu/rparadise-tracker/scripts/
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes scripts/run-recording-backfill.sh ubuntu@138.2.168.194:/home/ubuntu/rparadise-tracker/scripts/run-recording-backfill.sh.next
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes scripts/install-recording-retry.sh ubuntu@138.2.168.194:/home/ubuntu/rparadise-tracker/scripts/install-recording-retry.sh.next
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes ubuntu@138.2.168.194 \
+            'cd /home/ubuntu/rparadise-tracker/scripts && mv run-recording-backfill.sh.next run-recording-backfill.sh && mv install-recording-retry.sh.next install-recording-retry.sh'
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes scripts/systemd/rparadise-recording-retry.service scripts/systemd/rparadise-recording-retry.timer ubuntu@138.2.168.194:/home/ubuntu/rparadise-tracker/scripts/systemd/
       - name: Deploy image
         env:
