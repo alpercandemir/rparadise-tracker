@@ -78,6 +78,16 @@ ssh -i ~/.ssh/id_ed25519 ubuntu@138.2.168.194 \
   'cd /home/ubuntu/rparadise-tracker && sudo docker compose -f compose.yaml -f compose.observability.yaml up -d --build --wait --wait-timeout 300'
 ```
 
+GitHub Actions now runs backend, PostgreSQL integration, frontend, and ARM64
+image checks for pull requests. After a successful merge to `main`, it publishes
+the commit image to GHCR and deploys it over SSH. The deploy job uses the
+`ORACLE_SSH_KEY` repository secret and pins the VM SSH host key. It retains the
+server `.env`, PostgreSQL volume, Caddy, and monitoring containers.
+
+To redeploy or roll back, open the Deploy workflow's **Run workflow** form and
+provide the commit SHA to deploy. Confirm that any database migration is
+compatible before rolling back the application image.
+
 ## Data and free-tier limits
 
 Production started with a fresh database; local development records were not
