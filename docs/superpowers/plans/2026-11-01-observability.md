@@ -21,7 +21,7 @@ account/quota dependencies. Local open-source services fit the existing capacity
 - [x] Back up production database/config before deploying, build/tests before replace.
 - [x] Validate configs, all scrape targets, logs ingestion, dashboards, alert routing,
   HTTPS availability, database continuity and resource usage after rollout.
-- [ ] Configure email receiver acandemirn11@gmail.com once SMTP credentials exist.
+- [ ] Configure email receiver glanceappdev@gmail.com once SMTP credentials exist.
   Never claim delivery verified until a real test email is delivered/accepted.
 - [x] Document access, common investigations, thresholds, retention, rollback and
   the single-VM blind spot: this monitor cannot report if its own VM is down.

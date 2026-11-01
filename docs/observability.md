@@ -120,13 +120,13 @@ Kuralların davranışı `observability/prometheus/alerts.test.yml` ile test edi
 collector açılış toleransı, aynı şarkıda başarılı poll, düşük trafik gürültüsü
 ve sürekli HTTP hataları. Yeni kuralları devreye almadan önce bu testleri çalıştır.
 
-E-posta hedefi: `acandemirn11@gmail.com`. Gmail SMTP için iki adımlı doğrulama ve
+E-posta hedefi: `glanceappdev@gmail.com`. Gmail SMTP için iki adımlı doğrulama ve
 Google uygulama şifresi gerekir. Normal Google şifresini kullanma. Yerel
 `.secrets/smtp_password` dosyası ve sunucudaki karşılığı Git/build dışında tutulur.
 SMTP kurulumu ve gerçek gönderim testi tamamlanmadan e-posta bildirimi aktif
 olarak kabul edilmemelidir.
 
-Gönderimi etkinleştirmek için `acandemirn11@gmail.com` hesabında
+Gönderimi etkinleştirmek için `glanceappdev@gmail.com` hesabında
 [Google uygulama şifresi](https://myaccount.google.com/apppasswords) oluştur.
 İki adımlı doğrulama açık olmalıdır. Proje dizinindeki terminalde aşağıdaki komut
 şifreyi ekrana veya komut geçmişine yazmadan dosyaya kaydeder:
