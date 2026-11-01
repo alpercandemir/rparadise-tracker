@@ -18,7 +18,7 @@
     </div>
 
     <p v-if="state.tab === 'plays'" class="history-note">
-      <template v-if="page.historyStartedAt">History available since {{ formatRecordTime(page.historyStartedAt) }} (Europe/Istanbul).</template>
+      <template v-if="page.historyStartedAt">History available since {{ localTime(page.historyStartedAt) }} ({{ clientTimeZone }}).</template>
       <template v-else>Playback history begins with the first observed play after collection starts.</template>
       Times show when this tracker first observed a song, within its 30-second polling interval. Earlier broadcasts are not reconstructed.
     </p>
@@ -63,7 +63,7 @@
       </div>
       <div v-else class="table-scroll" tabindex="0" aria-label="Records table, scroll horizontally for more columns">
         <table>
-          <caption class="sr-only">{{ state.tab === 'plays' ? 'Playback history' : 'All saved tracks' }}. Click a column header to sort. All times are Europe/Istanbul.</caption>
+          <caption class="sr-only">{{ state.tab === 'plays' ? 'Playback history' : 'All saved tracks' }}. Click a column header to sort. All times use your timezone: {{ clientTimeZone }}.</caption>
           <thead><tr>
             <th scope="col" class="cover-cell">Cover</th>
             <th v-for="column in columns" :key="column.key" scope="col" :aria-sort="ariaSort(column.key)">
@@ -80,7 +80,7 @@
               </td>
               <td v-for="column in columns" :key="column.key" :class="{ 'date-cell': column.kind === 'date', 'title-cell': column.key === 'title' }">
                 <span v-if="column.key === 'channel'" class="channel-label" :style="{ color: CHANNELS[row.channel]?.color }">{{ CHANNELS[row.channel]?.name || row.channel }}</span>
-                <time v-else-if="column.kind === 'date'" :datetime="row[column.key]">{{ formatRecordTime(row[column.key]) }}</time>
+                <time v-else-if="column.kind === 'date'" :datetime="row[column.key]" :title="row[column.key]">{{ localTime(row[column.key]) }}</time>
                 <template v-else>{{ row[column.key] ?? '—' }}</template>
               </td>
             </tr>
@@ -90,7 +90,7 @@
     </div>
 
     <footer class="pagination">
-      <p>All times: <strong>Europe/Istanbul (UTC+03:00)</strong></p>
+      <p>Your timezone: <strong>{{ clientTimeZone }}</strong></p>
       <nav class="page-controls" aria-label="Records pagination">
         <button class="control secondary" :disabled="loading || state.page === 0" @click="change({ page: state.page - 1 })">Previous</button>
         <span>Page {{ state.page + 1 }} of {{ Math.max(page.totalPages, 1) }}</span>
@@ -103,9 +103,11 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { CHANNELS, radioParadiseAPI } from '../services/api.js'
-import { parseRecordsHash, recordsHash, updateRecordsState, formatRecordTime, pageRange } from '../services/records.js'
+import { parseRecordsHash, recordsHash, updateRecordsState, formatRecordTime, getClientTimeZone, pageRange } from '../services/records.js'
 
 const recordTabs = [{ id: 'tracks', label: 'All Tracks' }, { id: 'plays', label: 'Playback History' }]
+const clientTimeZone = getClientTimeZone()
+const localTime = value => formatRecordTime(value, clientTimeZone)
 const state = ref(parseRecordsHash(window.location.hash))
 const draft = reactive({ q: state.value.q, channel: state.value.channel, from: state.value.from, to: state.value.to })
 const page = ref({ items: [], page: state.value.page, size: state.value.size, totalElements: 0, totalPages: 0, historyStartedAt: null })
@@ -155,6 +157,7 @@ async function loadPage() {
   error.value = ''
   const { tab, ...params } = state.value
   if (tab === 'tracks') { delete params.from; delete params.to }
+  else params.timeZone = clientTimeZone
   try {
     const data = await radioParadiseAPI.getRecordsPage(tab, params, controller.signal)
     if (current === request) page.value = data

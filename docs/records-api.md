@@ -37,7 +37,8 @@ current filters; null until the first event, and always null for tracks.
 | `direction` | `asc` or `desc` (default) |
 | `q` | Case-insensitive literal substring in title, artist, or album; maximum 200 characters |
 | `channel` | `0` Main Mix, `1` Mellow Mix, `2` Rock Mix; omitted/empty means all |
-| `from`, `to` | Plays only: inclusive calendar dates, `YYYY-MM-DD`, Europe/Istanbul |
+| `from`, `to` | Plays only: inclusive calendar dates, `YYYY-MM-DD`, in `timeZone` |
+| `timeZone` | Timezone for history date boundaries, e.g. `America/New_York` or `UTC`; omitted defaults to `Europe/Istanbul` for existing API clients. The UI explicitly sends the browser's timezone. |
 
 Track sort fields: `id`, `title`, `artist`, `album`, `year`, `channel`,
 `firstPlayed`, `lastPlayed`, `playCount`.
@@ -55,10 +56,21 @@ Examples:
 /api/records/tracks?channel=2&q=Muse&sort=playCount&direction=desc
 /api/records/plays?page=0&size=50&sort=playedAt&direction=desc
 /api/records/plays?channel=1&from=2026-11-01&to=2026-11-01
+/api/records/plays?from=2026-11-01&to=2026-11-01&timeZone=America/New_York
 ```
 
-All track timestamps include an explicit offset. History `playedAt` is an ISO
-8601 instant (UTC `Z`). The UI displays both in Europe/Istanbul, including seconds.
+All API timestamps (`firstPlayed`, `lastPlayed`, `playedAt`, `historyStartedAt`)
+are ISO 8601 UTC instants (`Z`), including the legacy `/api/songs` endpoints.
+The UI converts them to the browser's timezone, includes seconds, and shows the
+detected timezone name. Date filters use that same timezone and respect its
+daylight-saving transitions (calendar days can be 23 or 25 hours).
+
+Storage: playback events use `Instant`/PostgreSQL `timestamp with time zone`.
+The legacy Song `first_played`/`last_played` columns still contain Istanbul wall
+time (`LocalDateTime`/`timestamp without time zone`). The API interprets those
+values in `Europe/Istanbul` and converts to UTC, preserving their actual instant;
+it does not relabel the stored wall time as UTC or perform a schema migration.
+
 `playedAt` means first observed by the tracker, whose normal polling interval is
 30 seconds; it is not an exact broadcaster start time. Downtime may leave gaps.
 An ongoing track is deduplicated across application restarts via its latest

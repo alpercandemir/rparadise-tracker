@@ -1,6 +1,6 @@
 package com.radioparadise.tracker.controller;
 
-import com.radioparadise.tracker.model.Song;
+import com.radioparadise.tracker.dto.TrackRecord;
 import com.radioparadise.tracker.model.RadioParadiseChannel;
 import com.radioparadise.tracker.service.SongService;
 import lombok.RequiredArgsConstructor;
@@ -20,23 +20,23 @@ public class SongController {
     private final SongService songService;
 
     @GetMapping
-    public ResponseEntity<List<Song>> getAllSongs() {
-        return ResponseEntity.ok(songService.getAllSongs());
+    public ResponseEntity<List<TrackRecord>> getAllSongs() {
+        return ResponseEntity.ok(songService.getAllSongs().stream().map(TrackRecord::from).toList());
     }
 
     @GetMapping("/recent")
-    public ResponseEntity<List<Song>> getRecentSongs() {
-        return ResponseEntity.ok(songService.getRecentSongs());
+    public ResponseEntity<List<TrackRecord>> getRecentSongs() {
+        return ResponseEntity.ok(songService.getRecentSongs().stream().map(TrackRecord::from).toList());
     }
 
     @GetMapping("/most-played")
-    public ResponseEntity<List<Song>> getMostPlayedSongs() {
-        return ResponseEntity.ok(songService.getMostPlayedSongs());
+    public ResponseEntity<List<TrackRecord>> getMostPlayedSongs() {
+        return ResponseEntity.ok(songService.getMostPlayedSongs().stream().map(TrackRecord::from).toList());
     }
 
     @GetMapping("/channel/{channelId}")
-    public ResponseEntity<List<Song>> getSongsByChannel(@PathVariable String channelId) {
+    public ResponseEntity<List<TrackRecord>> getSongsByChannel(@PathVariable String channelId) {
         String validatedChannelId = RadioParadiseChannel.fromId(channelId).id();
-        return ResponseEntity.ok(songService.getSongsByChannel(validatedChannelId));
+        return ResponseEntity.ok(songService.getSongsByChannel(validatedChannelId).stream().map(TrackRecord::from).toList());
     }
 }

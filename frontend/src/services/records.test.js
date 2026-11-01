@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import axios from 'axios'
+import { execFileSync } from 'node:child_process'
 import { parseRecordsHash, recordsHash, updateRecordsState, formatRecordTime, pageRange } from './records.js'
 import { radioParadiseAPI } from './api.js'
 
@@ -31,11 +32,32 @@ test('filter and sort changes reset pagination; tabs reset incompatible sorting 
     assert.equal(tracks.page, 0)
 })
 
-test('timestamps include Istanbul calendar date and seconds; empty values are explicit', () => {
-    assert.equal(formatRecordTime('2026-10-31T21:05:07Z'), '01.11.2026 00:05:07')
-    assert.equal(formatRecordTime('2026-11-01T12:00:00+03:00'), '01.11.2026 12:00:00')
+test('timestamps convert absolute instants to the requested zone including day rollover', () => {
+    assert.equal(formatRecordTime('2026-10-31T21:05:07Z', 'Europe/Istanbul'), '01.11.2026 00:05:07')
+    assert.equal(formatRecordTime('2026-11-01T12:00:00+03:00', 'UTC'), '01.11.2026 09:00:00')
+    assert.equal(formatRecordTime('2026-10-31T21:05:07Z', 'Asia/Tokyo'), '01.11.2026 06:05:07')
+    assert.equal(formatRecordTime('2026-10-31T21:05:07Z', 'America/New_York'), '31.10.2026 17:05:07')
     assert.equal(formatRecordTime(null), '—')
     assert.equal(formatRecordTime('not-a-date'), '—')
+})
+
+test('formatting follows the browser runtime timezone by default', () => {
+    const moduleUrl = new URL('./records.js', import.meta.url).href
+    for (const [zone, expected] of [
+        ['UTC', '31.10.2026 21:05:07'],
+        ['America/New_York', '31.10.2026 17:05:07'],
+        ['Asia/Tokyo', '01.11.2026 06:05:07']
+    ]) {
+        const result = execFileSync(process.execPath, ['--input-type=module', '-e',
+            `import {formatRecordTime} from ${JSON.stringify(moduleUrl)}; process.stdout.write(formatRecordTime('2026-10-31T21:05:07Z'))`
+        ], { env: { ...process.env, TZ: zone }, encoding: 'utf8' })
+        assert.equal(result, expected, zone)
+    }
+})
+
+test('local formatting applies daylight saving for the date being shown', () => {
+    assert.equal(formatRecordTime('2026-03-08T06:59:59Z', 'America/New_York'), '08.03.2026 01:59:59')
+    assert.equal(formatRecordTime('2026-03-08T07:00:00Z', 'America/New_York'), '08.03.2026 03:00:00')
 })
 
 test('empty and final pages have honest ranges', () => {

@@ -5,12 +5,14 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.DateTimeException;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.Set;
 
 public record RecordsQuery(int page, int size, String sort, Sort.Direction direction,
-                           String search, String channel, LocalDate from, LocalDate to) {
+                           String search, String channel, LocalDate from, LocalDate to, ZoneId timeZone) {
     private static final Set<String> TRACK_SORTS = Set.of("id", "title", "artist", "album", "year",
             "channel", "firstPlayed", "lastPlayed", "playCount");
     private static final Set<String> PLAY_SORTS = Set.of("id", "title", "artist", "album", "year", "channel", "playedAt");
@@ -31,7 +33,14 @@ public record RecordsQuery(int page, int size, String sort, Sort.Direction direc
         LocalDate from = history ? date(parameters.get("from")) : null;
         LocalDate to = history ? date(parameters.get("to")) : null;
         if (from != null && to != null && from.isAfter(to)) throw new IllegalArgumentException("from must not be after to");
-        return new RecordsQuery(page, size, sort, Sort.Direction.fromString(direction), search, channel, from, to);
+        ZoneId timeZone;
+        try {
+            // Preserve the original API default; the browser explicitly sends its own zone.
+            timeZone = ZoneId.of(parameters.getOrDefault("timeZone", "Europe/Istanbul"));
+        } catch (DateTimeException exception) {
+            throw new IllegalArgumentException("timeZone must be a valid timezone such as UTC or America/New_York");
+        }
+        return new RecordsQuery(page, size, sort, Sort.Direction.fromString(direction), search, channel, from, to, timeZone);
     }
 
     public PageRequest pageable(boolean history) {

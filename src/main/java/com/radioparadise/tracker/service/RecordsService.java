@@ -15,7 +15,6 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -24,7 +23,6 @@ import java.util.Locale;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class RecordsService {
-    private static final ZoneId DISPLAY_ZONE = ZoneId.of("Europe/Istanbul");
     private final SongRepository songs;
     private final PlaybackEventRepository plays;
 
@@ -40,9 +38,9 @@ public class RecordsService {
         Specification<PlaybackEvent> filter = (root, criteria, cb) -> {
             List<Predicate> predicates = filters(query, root.get("song"), root.get("channel"), cb);
             if (query.from() != null) predicates.add(cb.greaterThanOrEqualTo(root.get("observedAt"),
-                    query.from().atStartOfDay(DISPLAY_ZONE).toInstant()));
+                    query.from().atStartOfDay(query.timeZone()).toInstant()));
             if (query.to() != null) predicates.add(cb.lessThan(root.get("observedAt"),
-                    query.to().plusDays(1).atStartOfDay(DISPLAY_ZONE).toInstant()));
+                    query.to().plusDays(1).atStartOfDay(query.timeZone()).toInstant()));
             return cb.and(predicates.toArray(Predicate[]::new));
         };
         var page = plays.findAll(filter, query.pageable(true)).map(PlaybackRecord::from);

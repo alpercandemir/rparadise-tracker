@@ -9,6 +9,8 @@ import com.radioparadise.tracker.scheduler.SongTrackerScheduler;
 import com.radioparadise.tracker.service.SongService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -104,14 +106,46 @@ class RecordsPostgresTest {
         assertThat(items(page).getFirst().get("playedAt")).isEqualTo("2026-11-01T20:59:59Z");
         assertThat(page.get("historyStartedAt")).isEqualTo("2026-10-31T20:59:59Z");
         assertThat(items(get("/api/records/tracks")).getFirst().get("firstPlayed"))
-                .isEqualTo("2026-11-01T12:00:00+03:00");
+                .isEqualTo("2026-11-01T09:00:00Z");
         assertThat(items(get("/api/records/plays?sort=artist&direction=asc"))).hasSize(4);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "America/New_York,2026-03-08,2026-03-08T05:00:00Z,2026-03-09T04:00:00Z",
+            "America/New_York,2026-11-01,2026-11-01T04:00:00Z,2026-11-02T05:00:00Z",
+            "Asia/Tokyo,2026-11-01,2026-10-31T15:00:00Z,2026-11-01T15:00:00Z",
+            "UTC,2026-11-01,2026-11-01T00:00:00Z,2026-11-02T00:00:00Z"
+    })
+    void filtersCalendarDaysInTheClientTimezoneIncludingDaylightSaving(String zone, String day,
+                                                                       String start, String end) {
+        Song song = songs.save(song("Zone boundaries", "1"));
+        Instant first = Instant.parse(start);
+        Instant last = Instant.parse(end);
+        for (Instant time : List.of(first.minusSeconds(1), first, last.minusSeconds(1), last)) {
+            plays.save(PlaybackEvent.builder().song(song).channel("1").observedAt(time).build());
+        }
+        Map<?, ?> page = get("/api/records/plays?from=" + day + "&to=" + day + "&timeZone=" + zone);
+        assertThat(items(page)).extracting(row -> row.get("playedAt"))
+                .containsExactly(last.minusSeconds(1).toString(), first.toString());
+    }
+
+    @Test
+    void dashboardEndpointsAlsoReturnUnambiguousUtcTimestamps() {
+        songs.save(song("UTC dashboard", "1"));
+        for (String path : List.of("/api/songs", "/api/songs/recent", "/api/songs/most-played", "/api/songs/channel/1")) {
+            List<?> rows = http.get().uri(URI.create("http://localhost:" + port + path)).retrieve().body(List.class);
+            assertThat(rows).hasSize(1);
+            Map<?, ?> row = (Map<?, ?>) rows.getFirst();
+            assertThat(row.get("firstPlayed")).isEqualTo("2026-11-01T09:00:00Z");
+            assertThat(row.get("lastPlayed")).isEqualTo("2026-11-01T09:00:00Z");
+        }
     }
 
     @Test
     void invalidQueriesReturn400RatherThanSilentlyIgnoringThem() {
         for (String query : List.of("page=-1", "size=0", "size=50000", "sort=notAColumn",
-                "direction=sideways", "channel=9", "page=abc", "q=" + "x".repeat(201))) {
+                "direction=sideways", "channel=9", "page=abc", "timeZone=Not/AZone", "q=" + "x".repeat(201))) {
             assertBadRequest("/api/records/tracks?" + query);
         }
         assertBadRequest("/api/records/plays?from=2026-11-02&to=2026-11-01");

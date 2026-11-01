@@ -41,13 +41,21 @@ export function updateRecordsState(state, patch) {
     return next
 }
 
-const dateFormatter = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
-})
+export function getClientTimeZone() {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+}
 
-export function formatRecordTime(value) {
+const dateFormatters = new Map()
+
+export function formatRecordTime(value, timeZone = getClientTimeZone()) {
     if (!value || Number.isNaN(new Date(value).getTime())) return '—'
+    if (!dateFormatters.has(timeZone)) {
+        dateFormatters.set(timeZone, new Intl.DateTimeFormat('en-GB', {
+            timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+        }))
+    }
+    const dateFormatter = dateFormatters.get(timeZone)
     const parts = Object.fromEntries(dateFormatter.formatToParts(new Date(value)).map(part => [part.type, part.value]))
     return `${parts.day}.${parts.month}.${parts.year} ${parts.hour}:${parts.minute}:${parts.second}`
 }
