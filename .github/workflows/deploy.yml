@@ -57,8 +57,15 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' '138.2.168.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGqx2YJFhibyRhBYVvaAf8FRFSSCWFK6eowGC4jUgiXU' > ~/.ssh/known_hosts
-      - name: Copy production Compose override
-        run: scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes compose.production.yaml ubuntu@138.2.168.194:/home/ubuntu/rparadise-tracker/compose.production.yaml
+      - name: Copy production runtime configuration
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes ubuntu@138.2.168.194 'mkdir -p /home/ubuntu/rparadise-tracker/scripts/systemd'
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes compose.production.yaml compose.recording-backfill.yaml ubuntu@138.2.168.194:/home/ubuntu/rparadise-tracker/
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes scripts/run-recording-backfill.sh ubuntu@138.2.168.194:/home/ubuntu/rparadise-tracker/scripts/run-recording-backfill.sh.next
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes scripts/install-recording-retry.sh ubuntu@138.2.168.194:/home/ubuntu/rparadise-tracker/scripts/install-recording-retry.sh.next
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes ubuntu@138.2.168.194 \
+            'cd /home/ubuntu/rparadise-tracker/scripts && mv run-recording-backfill.sh.next run-recording-backfill.sh && mv install-recording-retry.sh.next install-recording-retry.sh'
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes scripts/systemd/rparadise-recording-retry.service scripts/systemd/rparadise-recording-retry.timer ubuntu@138.2.168.194:/home/ubuntu/rparadise-tracker/scripts/systemd/
       - name: Deploy image
         env:
           IMAGE: ghcr.io/alpercandemir/rparadise-tracker:sha-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.image_sha }}
@@ -68,3 +75,7 @@ jobs:
           curl --fail --silent --show-error \
             --resolve rparadise.138.2.168.194.sslip.io:443:138.2.168.194 \
             https://rparadise.138.2.168.194.sslip.io/api/songs
+      - name: Update daily recording retry worker
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes ubuntu@138.2.168.194 \
+            'cd /home/ubuntu/rparadise-tracker && bash scripts/install-recording-retry.sh'

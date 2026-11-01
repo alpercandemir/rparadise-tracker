@@ -60,6 +60,22 @@ public class Song {
 
     private Instant metadataCheckedAt;
 
+    @Column(length = 12)
+    private String isrc;
+
+    @Column(length = 500)
+    private String recordingMatchSource;
+
+    private String recordingMatchStatus;
+
+    @Column(length = 500)
+    private String spotifyUrl;
+
+    @Column(length = 500)
+    private String youtubeMusicUrl;
+
+    private Instant recordingCheckedAt;
+
     @Column(name = "first_played", nullable = false)
     private Instant firstPlayed;
 

@@ -22,6 +22,25 @@ public interface SongRepository extends JpaRepository<Song, Long>, JpaSpecificat
             + "s.durationSeconds = :duration, s.metadataCheckedAt = :checkedAt, s.rpSongId = coalesce(:rpSongId, s.rpSongId) where s.id = :id")
     void updateDetails(Long id, String lyrics, String status, String source, Double duration, Instant checkedAt, Long rpSongId);
 
+    @Modifying
+    @Transactional
+    @Query("update Song s set s.isrc = :isrc, s.recordingMatchStatus = :status, "
+            + "s.recordingMatchSource = :source, s.spotifyUrl = :spotifyUrl, "
+            + "s.youtubeMusicUrl = :youtubeMusicUrl, s.recordingCheckedAt = :checkedAt where s.id = :id")
+    void updateRecordingLinks(Long id, String isrc, String status, String source,
+                              String spotifyUrl, String youtubeMusicUrl, Instant checkedAt);
+
+    @Query("select coalesce(max(s.id), 0) from Song s")
+    long findHighestId();
+
+    @Query("select s.id from Song s where s.isrc is null and s.id > :afterId "
+            + "and s.id <= :throughId order by s.id")
+    List<Long> findIdsWithoutIsrc(long afterId, long throughId, Pageable pageable);
+
+    @Query("select s.id from Song s where s.recordingMatchStatus = 'unavailable' "
+            + "and s.id > :afterId and s.id <= :throughId order by s.id")
+    List<Long> findIdsWithRecordingErrors(long afterId, long throughId, Pageable pageable);
+
     Optional<Song> findByArtistAndTitleAndAlbumAndChannel(String artist, String title, String album, String channel);
 
     List<Song> findByChannel(String channel);

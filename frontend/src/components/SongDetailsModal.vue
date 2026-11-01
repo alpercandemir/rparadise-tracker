@@ -21,6 +21,13 @@
               <div><dt>Last observed</dt><dd>{{ localTime(track.lastPlayed) }}</dd></div>
             </dl>
             <p class="tracking-note">Listening statistics are for this channel. Times use your timezone.</p>
+            <nav class="listening-links" aria-label="Find this recording on music services">
+              <a v-for="link in links" :key="link.provider" :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.label }} ↗</a>
+            </nav>
+            <p v-if="recordingSource" class="recording-source">
+              Recording matched via <a :href="recordingSource" target="_blank" rel="noopener noreferrer">MusicBrainz ↗</a>
+              <span v-if="details?.recordingLinks?.isrc"> · ISRC: {{ details.recordingLinks.isrc }}</span>
+            </p>
           </div>
         </div>
         <section class="lyrics-section" aria-labelledby="lyrics-title" :aria-busy="loading">
@@ -46,12 +53,15 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AlbumArtwork from './AlbumArtwork.vue'
 import { CHANNELS, radioParadiseAPI } from '../services/api.js'
 import { formatRecordTime } from '../services/records.js'
+import { listeningLinks, musicBrainzSource } from '../services/listeningLinks.js'
 
 const props = defineProps({ song: { type: Object, required: true } })
 const emit = defineEmits(['close'])
 const dialog = ref(null)
 const details = ref(null)
 const track = computed(() => details.value?.song || props.song)
+const links = computed(() => listeningLinks(track.value, details.value?.recordingLinks))
+const recordingSource = computed(() => musicBrainzSource(details.value?.recordingLinks?.source))
 const loading = ref(true)
 const error = ref('')
 let controller
@@ -107,6 +117,10 @@ dl { margin-top: 1.5rem; display: grid; gap: .8rem; }
 dl div { display: grid; grid-template-columns: 110px 1fr; gap: .75rem; font-size: .85rem; }
 dt { color: var(--text-secondary); } dd { margin: 0; overflow-wrap: anywhere; }
 .tracking-note { font-size: .75rem; line-height: 1.5; color: var(--text-secondary); margin-top: 1rem; }
+.listening-links { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+.listening-links a { display: inline-flex; align-items: center; min-height: 40px; padding: .55rem .8rem; border: 1px solid #dce1ef; border-radius: 8px; text-decoration: none; font-weight: 600; }
+.listening-links a:hover { background: #f0f2fa; }
+.recording-source { margin-top: .65rem; font-size: .75rem; color: var(--text-secondary); line-height: 1.6; overflow-wrap: anywhere; }
 .lyrics-section { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0; }
 .lyrics-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 h3 { font-size: 1.25rem; }

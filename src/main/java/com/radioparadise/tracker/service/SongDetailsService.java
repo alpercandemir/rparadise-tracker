@@ -15,11 +15,13 @@ import java.util.stream.IntStream;
 public class SongDetailsService {
     private final SongRepository songs;
     private final LyricsClient lyrics;
+    private final RecordingLinksService recordingLinks;
     private final Object[] locks = IntStream.range(0, 64).mapToObj(i -> new Object()).toArray();
 
-    public SongDetailsService(SongRepository songs, LyricsClient lyrics) {
+    public SongDetailsService(SongRepository songs, LyricsClient lyrics, RecordingLinksService recordingLinks) {
         this.songs = songs;
         this.lyrics = lyrics;
+        this.recordingLinks = recordingLinks;
     }
 
     public SongDetails get(long id) {
@@ -41,6 +43,8 @@ public class SongDetailsService {
                         result.duration() == null ? song.getDurationSeconds() : result.duration(), checkedAt, result.rpSongId());
                 song = songs.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
             }
+            recordingLinks.refresh(song);
+            song = songs.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
             return SongDetails.from(song);
         }
     }

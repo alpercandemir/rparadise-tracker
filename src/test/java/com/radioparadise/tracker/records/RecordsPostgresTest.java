@@ -37,6 +37,7 @@ class RecordsPostgresTest {
     @Autowired SongRepository songs;
     @Autowired PlaybackEventRepository plays;
     @Autowired SongService service;
+    @Autowired com.radioparadise.tracker.service.RecordingBackfillService backfill;
     @Autowired TransactionTemplate transactions;
     @Autowired Environment environment;
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
@@ -44,10 +45,15 @@ class RecordsPostgresTest {
     @Autowired com.radioparadise.tracker.controller.SongController songController;
     @MockitoBean SongTrackerScheduler scheduler;
     @MockitoBean com.radioparadise.tracker.client.LyricsClient lyricsClient;
+    @MockitoBean com.radioparadise.tracker.client.MusicBrainzClient musicBrainzClient;
     RestClient http = RestClient.create();
 
     @BeforeEach
     void clearTestDatabase() {
+        org.mockito.Mockito.when(musicBrainzClient.find(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any()))
+                .thenReturn(com.radioparadise.tracker.client.MusicBrainzClient.Result.unresolved("not_found"));
         recordsController.clearCaches();
         songController.clearCache();
         assertThat(environment.getRequiredProperty("spring.datasource.url"))
@@ -62,14 +68,24 @@ class RecordsPostgresTest {
         Song song = songs.save(song("Details", "1"));
         org.mockito.Mockito.when(lyricsClient.find(null, "Artist", "Details", "Album", "1"))
                 .thenReturn(new com.radioparadise.tracker.client.LyricsClient.Result("found", "Sample lyrics", "https://radioparadise.com/music/song/12", 120.0, 12L));
+        String source = "https://musicbrainz.org/recording/5a6cd4c6-3d1f-4d71-8803-1b327674fb86";
+        String spotify = "https://open.spotify.com/track/0123456789ABCDEFGHIJKL";
+        org.mockito.Mockito.when(musicBrainzClient.find("Artist", "Details", "Album", 120.0))
+                .thenReturn(new com.radioparadise.tracker.client.MusicBrainzClient.Result("matched", "GBABC1200001", source, spotify, null));
         Map<?, ?> details = get("/api/songs/" + song.getId());
         assertThat(details.get("lyrics")).isEqualTo("Sample lyrics");
         Song enriched = songs.findById(song.getId()).orElseThrow();
         assertThat(enriched.getLyrics()).isEqualTo("Sample lyrics");
         assertThat(enriched.getRpSongId()).isEqualTo(12);
         assertThat(enriched.getLyricsSource()).isEqualTo("https://radioparadise.com/music/song/12");
+        assertThat(enriched.getIsrc()).isEqualTo("GBABC1200001");
+        assertThat(enriched.getRecordingMatchSource()).isEqualTo(source);
+        assertThat(enriched.getSpotifyUrl()).isEqualTo(spotify);
+        assertThat(enriched.getRecordingCheckedAt()).isNotNull();
+        assertThat(((Map<?, ?>) details.get("recordingLinks")).get("isrc")).isEqualTo("GBABC1200001");
         get("/api/songs/" + song.getId());
         org.mockito.Mockito.verify(lyricsClient, org.mockito.Mockito.times(1)).find(null, "Artist", "Details", "Album", "1");
+        org.mockito.Mockito.verify(musicBrainzClient, org.mockito.Mockito.times(1)).find("Artist", "Details", "Album", 120.0);
         assertThat(items(get("/api/records/tracks"))).hasSize(1);
         song.setTitle("Changed later");
         songs.save(song);
@@ -92,6 +108,69 @@ class RecordsPostgresTest {
         Song result = songs.findById(song.getId()).orElseThrow();
         assertThat(result.getLyrics()).isEqualTo("Saved lyrics");
         assertThat(result.getPlayCount()).isEqualTo(2);
+    }
+
+    @Test
+    void recordingEnrichmentAndPlaybackStatisticsDoNotOverwriteEachOther() {
+        Song song = songs.save(song("Concurrent recording links", "1"));
+        Instant firstPlayed = song.getFirstPlayed();
+        transactions.executeWithoutResult(tx -> {
+            Song managed = songs.findById(song.getId()).orElseThrow();
+            var independent = new TransactionTemplate(transactions.getTransactionManager());
+            independent.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            independent.executeWithoutResult(other -> songs.updateRecordingLinks(song.getId(), "GBABC1200001",
+                    "matched", "source", "spotify", null, Instant.now()));
+            managed.setPlayCount(2);
+            managed.setLastPlayed(Instant.now());
+        });
+        Song result = songs.findById(song.getId()).orElseThrow();
+        assertThat(result.getIsrc()).isEqualTo("GBABC1200001");
+        assertThat(result.getSpotifyUrl()).isEqualTo("spotify");
+        assertThat(result.getPlayCount()).isEqualTo(2);
+        assertThat(result.getFirstPlayed()).isEqualTo(firstPlayed);
+        songs.updateRecordingLinks(song.getId(), "GBABC1200001", "unavailable", "source", "spotify", null, Instant.now());
+        Song refreshed = songs.findById(song.getId()).orElseThrow();
+        assertThat(refreshed.getLastPlayed()).isEqualTo(result.getLastPlayed());
+        assertThat(refreshed.getPlayCount()).isEqualTo(2);
+    }
+
+    @Test
+    void backfillContinuesAfterCatalogErrorsAndRetriesOnlyFailures() {
+        Song failed = song("Catalog error", "1");
+        Song matched = song("Catalog match", "1");
+        for (Song song : List.of(failed, matched)) {
+            song.setDurationSeconds(120.0);
+            song.setLyricsStatus("found");
+            song.setLyricsSource("https://radioparadise.com/music/song/12");
+            song.setMetadataCheckedAt(Instant.now());
+            songs.save(song);
+        }
+        org.mockito.Mockito.when(musicBrainzClient.find("Artist", "Catalog error", "Album", 120.0))
+                .thenReturn(com.radioparadise.tracker.client.MusicBrainzClient.Result.unresolved("unavailable"));
+        org.mockito.Mockito.when(musicBrainzClient.find("Artist", "Catalog match", "Album", 120.0))
+                .thenReturn(new com.radioparadise.tracker.client.MusicBrainzClient.Result("matched", "GBABC1200001", "source", null, null));
+
+        var initial = backfill.run(0, 100);
+
+        assertThat(initial.processed()).isEqualTo(2);
+        assertThat(initial.withIsrc()).isEqualTo(1);
+        assertThat(initial.unavailable()).isEqualTo(1);
+        assertThat(songs.findIdsWithoutIsrc(0, songs.findHighestId(), org.springframework.data.domain.PageRequest.of(0, 50)))
+                .containsExactly(failed.getId());
+        jdbc.update("update song set recording_checked_at = ? where id = ?",
+                java.sql.Timestamp.from(Instant.now().minusSeconds(301)), failed.getId());
+        org.mockito.Mockito.when(musicBrainzClient.find("Artist", "Catalog error", "Album", 120.0))
+                .thenReturn(new com.radioparadise.tracker.client.MusicBrainzClient.Result("matched", "GBABC1200002", "source", null, null));
+
+        var retry = backfill.retryFailures(100);
+
+        assertThat(retry.processed()).isEqualTo(1);
+        assertThat(retry.withIsrc()).isEqualTo(1);
+        assertThat(songs.findIdsWithRecordingErrors(0, songs.findHighestId(), org.springframework.data.domain.PageRequest.of(0, 50))).isEmpty();
+        assertThat(songs.findIdsWithoutIsrc(0, failed.getId(), org.springframework.data.domain.PageRequest.of(0, 50))).isEmpty();
+        assertThat(songs.findById(failed.getId()).orElseThrow().getPlayCount()).isEqualTo(1);
+        assertThat(plays.count()).isZero();
+        org.mockito.Mockito.verifyNoInteractions(lyricsClient);
     }
 
     @Test

@@ -197,6 +197,80 @@ Large/medium/small RP artwork URLs are retained when collected. Existing rows re
 valid; Hibernate adds the nullable RP ID column. Lyrics stay out of list responses.
 `radioparadise.api.base-url` configures both RP clients for local tests.
 
+Song details also resolve recording identifiers and streaming links through the
+[MusicBrainz API](https://musicbrainz.org/doc/MusicBrainz_API), without Spotify/Google credentials.
+The lookup requires an exact normalized artist credit, title, and album, plus duration
+within three seconds. It rejects video recordings, nonempty recording disambiguation,
+multiple matching recordings, truncated search results, and conflicting ISRCs. This favors
+missed matches over linking a different performance or version. A catalog match is an
+automatic metadata match, not manual verification or proof of playback availability.
+
+The optional ISRC, MusicBrainz recording source, match status, Spotify/YouTube Music URLs,
+and check time persist in nullable columns added by Hibernate's existing schema update.
+Direct links are accepted only from active streaming relationships on the matched recording:
+Spotify track URLs and explicit `music.youtube.com/watch` URLs. Ordinary YouTube video links
+are not converted to YouTube Music links. Recording-level link and ISRC coverage is incomplete;
+this version does not query Spotify or YouTube Music by ISRC. Search buttons remain available
+for each service without an accepted direct link. Artist/album links are never used as track links.
+
+Lookups run only when opening song details, outside playback transactions, after RP duration
+enrichment. Matches refresh after 30 days; absent, ambiguous, or incomplete matches after a day;
+temporary failures after five minutes. Previously accepted metadata survives temporary failures.
+A bounded 256-entry, 30-second cache coalesces catalog loads, including across channels.
+MusicBrainz requests are spaced at least 1.1 seconds apart per application instance, with
+2-second connection and 4-second read timeouts. Multiple instances sharing an outbound IP
+need a shared rate limiter before enabling catalog traffic on all instances.
+`musicbrainz.api.base-url` (or `MUSICBRAINZ_API_BASE_URL`) can select a test server or mirror.
+No keys are needed; public API use is subject to MusicBrainz's usage terms.
+
+### Backfill existing recording identifiers
+
+The `recording-backfill` profile runs a one-off maintenance pass without an HTTP server
+or playback collector, then closes the application context. It scans stable ID pages of
+up to 50 songs, bounded by the highest ID at startup. Existing ISRCs are skipped.
+Each song uses the ordinary details path to recover RP duration/IDs where possible and
+persist catalog results without changing plays or listening counters. Lookup TTLs and
+MusicBrainz rate limiting apply; unavailable catalog lookups do not stop subsequent songs.
+Database failures fail the job rather than reporting success. A rerun reuses persisted
+lookup outcomes; `--recording.backfill.after-id=123` can explicitly resume after an ID.
+The default per-pass limit is 10,000, configurable with `--recording.backfill.limit`.
+
+```bash
+java -jar target/radio-paradise-tracker-1.0.0.jar --spring.profiles.active=recording-backfill
+java -jar target/radio-paradise-tracker-1.0.0.jar --spring.profiles.active=recording-backfill --recording.backfill.retry-errors-only=true
+```
+
+The second command retries only rows whose latest catalog lookup was `unavailable`,
+including previously accepted matches retained through an outage. It does not repeatedly
+query ambiguous or missing recordings every day. Old rows without sufficient RP metadata
+remain unresolved until that metadata becomes available; search buttons still work.
+
+On the Oracle host, `scripts/run-recording-backfill.sh /absolute/path/backfill.jar missing`
+runs the maintenance JAR using the live application's Java runtime image, database
+environment, and Docker network. The live app is not replaced. Use `errors` for retries.
+`compose.recording-backfill.yaml` disables the web health check for the worker, which
+has no HTTP listener.
+The script uses `flock` and one worker container to prevent overlap. Do not start another
+catalog worker on the same outbound IP while a pass is running.
+
+The production systemd units in `scripts/systemd/` run error retries daily at **04:00
+Europe/Istanbul**. `Persistent=true` catches a missed run after downtime. They expect the
+maintenance JAR at `/home/ubuntu/rparadise-maintenance/recording-backfill.jar` and the script
+in the deployed repository directory. After copying the units to `/etc/systemd/system/`:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now rparadise-recording-retry.timer
+sudo systemctl list-timers rparadise-recording-retry.timer
+sudo journalctl -u rparadise-recording-retry.service
+```
+
+The deployment workflow copies the healthy release's JAR into the maintenance directory
+and updates/enables the timer, keeping its schema and matching logic aligned with the app. The
+timer runs independently of the playback collector; catalog/network failures cannot stop
+collection. A failed maintenance run is visible in systemd/journald and the timer retries
+on the next daily run. Take a database backup before the initial schema update/backfill.
+
 ## Development guidelines and checks
 
 Java changes follow the repository's [coding guidelines](AGENTS.md), adapted from
