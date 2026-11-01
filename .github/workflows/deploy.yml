@@ -24,6 +24,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.image_sha }}
       - name: Install SSH credentials
         env:
           SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
@@ -32,6 +35,8 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' '138.2.168.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGqx2YJFhibyRhBYVvaAf8FRFSSCWFK6eowGC4jUgiXU' > ~/.ssh/known_hosts
+      - name: Copy production Compose override
+        run: scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes compose.production.yaml ubuntu@138.2.168.194:/home/ubuntu/rparadise-tracker/compose.production.yaml
       - name: Deploy image
         env:
           IMAGE: ghcr.io/alpercandemir/rparadise-tracker:sha-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.image_sha }}
