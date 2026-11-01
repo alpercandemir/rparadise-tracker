@@ -4,8 +4,8 @@ import java.util.Arrays;
 
 public enum RadioParadiseChannel {
     MAIN("0", "Main Mix"),
-    ROCK("1", "Rock Mix"),
-    MELLOW("2", "Mellow Mix");
+    MELLOW("1", "Mellow Mix"),
+    ROCK("2", "Rock Mix");
 
     private final String id;
     private final String displayName;

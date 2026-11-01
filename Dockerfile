@@ -4,7 +4,7 @@ WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 COPY frontend/ ./
-RUN npm run build
+RUN npm test && npm run build
 
 FROM eclipse-temurin:25-jdk-noble AS backend
 WORKDIR /build

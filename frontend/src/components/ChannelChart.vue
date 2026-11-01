@@ -8,6 +8,7 @@
 import { computed } from 'vue'
 import { Doughnut } from 'vue-chartjs'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
+import { CHANNELS } from '../services/api.js'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
 
@@ -29,10 +30,10 @@ const chartData = computed(() => {
   })
 
   return {
-    labels: ['Main Mix', 'Rock Mix', 'Mellow Mix'],
+    labels: Object.values(CHANNELS).map(channel => channel.name),
     datasets: [{
       data: [channelCounts['0'], channelCounts['1'], channelCounts['2']],
-      backgroundColor: ['#667eea', '#f093fb', '#4facfe'],
+      backgroundColor: Object.values(CHANNELS).map(channel => channel.color),
       borderWidth: 0,
       hoverOffset: 10
     }]

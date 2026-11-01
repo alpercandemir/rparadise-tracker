@@ -150,8 +150,8 @@ const getTabSongs = () => {
     case 'all': return allSongs.value
     case 'recent': return recentSongs.value
     case 'main': return allSongs.value.filter(s => isChannelMatch(s.channel, '0'))
-    case 'rock': return allSongs.value.filter(s => isChannelMatch(s.channel, '1'))
-    case 'mellow': return allSongs.value.filter(s => isChannelMatch(s.channel, '2'))
+    case 'rock': return allSongs.value.filter(s => isChannelMatch(s.channel, '2'))
+    case 'mellow': return allSongs.value.filter(s => isChannelMatch(s.channel, '1'))
     default: return allSongs.value
   }
 }
