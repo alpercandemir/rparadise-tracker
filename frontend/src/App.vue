@@ -46,7 +46,7 @@
         <div class="stats-grid">
           <StatsCard
             title="Total Tracks"
-            :value="allSongs.length"
+            :value="summary.totalTracks"
             icon="🎼"
             color="var(--primary)"
           />
@@ -69,24 +69,28 @@
       <section class="charts-section">
         <div class="charts-grid">
           <div class="card chart-card">
-            <h3 class="chart-title">Tracks by Channel</h3>
-            <ChannelChart :songs="allSongs" />
+            <h3 class="chart-title">Tracks by Channel · All time</h3>
+            <ChannelChart :counts="summary.tracksByChannel" />
           </div>
           <div class="card chart-card">
-            <h3 class="chart-title">Most Played</h3>
+            <h3 class="chart-title">Most Played · All time</h3>
             <MostPlayedChart :songs="mostPlayedSongs" @select-song="openSong" />
           </div>
         </div>
         
         <!-- Timeline Chart (Full Width) -->
         <div class="card chart-card timeline-chart">
-          <h3 class="chart-title">Songs by Decade</h3>
-          <TimelineChart :songs="allSongs" @select-song="openSong" />
+          <h3 class="chart-title">Songs by Decade · All time</h3>
+          <TimelineChart :songs="latestSongs" :counts="summary.tracksByDecade" @select-song="openSong" />
         </div>
       </section>
 
       <!-- Song Lists -->
       <section class="lists-section">
+        <div class="section-heading">
+          <p>Showing up to 500 most recently played tracks. Channel tabs filter this selection.</p>
+          <a href="#/records">Browse all records →</a>
+        </div>
         <div class="tabs">
           <button
             v-for="tab in tabs"
@@ -127,7 +131,8 @@ import SongDetailsModal from './components/SongDetailsModal.vue'
 
 const loading = ref(true)
 const loadError = ref('')
-const allSongs = ref([])
+const latestSongs = ref([])
+const summary = ref({ totalTracks: 0, tracksByChannel: {}, tracksByDecade: {} })
 const recentSongs = ref([])
 const mostPlayedSongs = ref([])
 const liveSongs = ref([])
@@ -145,7 +150,7 @@ const syncView = () => {
 }
 
 const tabs = [
-  { id: 'all', label: 'All Songs' },
+  { id: 'all', label: 'Latest 500 tracks' },
   { id: 'recent', label: 'Recent' },
   { id: 'main', label: 'Main Mix' },
   { id: 'rock', label: 'Rock Mix' },
@@ -176,12 +181,12 @@ const currentSongs = computed(() => {
 
 const getTabSongs = () => {
   switch (activeTab.value) {
-    case 'all': return allSongs.value
+    case 'all': return latestSongs.value
     case 'recent': return recentSongs.value
-    case 'main': return allSongs.value.filter(s => isChannelMatch(s.channel, '0'))
-    case 'rock': return allSongs.value.filter(s => isChannelMatch(s.channel, '2'))
-    case 'mellow': return allSongs.value.filter(s => isChannelMatch(s.channel, '1'))
-    default: return allSongs.value
+    case 'main': return latestSongs.value.filter(s => isChannelMatch(s.channel, '0'))
+    case 'rock': return latestSongs.value.filter(s => isChannelMatch(s.channel, '2'))
+    case 'mellow': return latestSongs.value.filter(s => isChannelMatch(s.channel, '1'))
+    default: return latestSongs.value
   }
 }
 
@@ -193,17 +198,18 @@ const getTabTitle = () => {
 const loadData = async () => {
   loadError.value = ''
   try {
-    // Only show loading state on initial load (when allSongs is empty)
-    if (allSongs.value.length === 0) {
+    // Only show loading state on initial load.
+    if (latestSongs.value.length === 0) {
       loading.value = true
     }
-    const [songs, recent, mostPlayed, current] = await Promise.all([
-      radioParadiseAPI.getAllSongs(),
+    const [dashboard, recent, mostPlayed, current] = await Promise.all([
+      radioParadiseAPI.getDashboard(),
       radioParadiseAPI.getRecentSongs(),
       radioParadiseAPI.getMostPlayedSongs(),
       radioParadiseAPI.getCurrentSongs()
     ])
-    allSongs.value = songs
+    latestSongs.value = dashboard.latestTracks
+    summary.value = dashboard
     recentSongs.value = recent
     mostPlayedSongs.value = mostPlayed
     liveSongs.value = current

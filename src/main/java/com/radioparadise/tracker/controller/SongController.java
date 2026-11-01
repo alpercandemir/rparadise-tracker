@@ -1,6 +1,7 @@
 package com.radioparadise.tracker.controller;
 
 import com.radioparadise.tracker.dto.SongDetails;
+import com.radioparadise.tracker.dto.Dashboard;
 import com.radioparadise.tracker.dto.TrackRecord;
 import com.radioparadise.tracker.model.RadioParadiseChannel;
 import com.radioparadise.tracker.model.Song;
@@ -27,9 +28,19 @@ public class SongController {
     private final SongDetailsService songDetailsService;
     private final ExpiringCache<String, List<TrackRecord>> songLists =
             new ExpiringCache<>(7, Duration.ofSeconds(30));
+    private final ExpiringCache<String, Dashboard> dashboardCache =
+            new ExpiringCache<>(1, Duration.ofSeconds(30));
 
     public void clearCache() {
         songLists.clear();
+        dashboardCache.clear();
+    }
+
+    @GetMapping("/dashboard")
+    public ResponseEntity<Dashboard> getDashboard() {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(dashboardCache.get("dashboard", songService::getDashboard));
     }
 
     @GetMapping("/current")

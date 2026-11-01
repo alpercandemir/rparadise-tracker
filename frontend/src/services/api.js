@@ -3,6 +3,11 @@ import axios from 'axios'
 const API_BASE = '/api'
 
 export const radioParadiseAPI = {
+    async getDashboard() {
+        const response = await axios.get(`${API_BASE}/songs/dashboard`)
+        return response.data
+    },
+
     async getSongDetails(id, signal) {
         const response = await axios.get(`${API_BASE}/songs/${id}`, { signal })
         return response.data

@@ -49,5 +49,17 @@ public interface SongRepository extends JpaRepository<Song, Long>, JpaSpecificat
 
     List<Song> findAllByOrderByLastPlayedDesc(Pageable pageable);
 
+    List<Song> findAllByOrderByLastPlayedDescIdDesc(Pageable pageable);
+
     List<Song> findAllByOrderByPlayCountDesc(Pageable pageable);
+
+    @Query("select s.channel as channel, s.year as year, count(s) as trackCount "
+            + "from Song s group by s.channel, s.year")
+    List<TrackCount> countTracksByChannelAndYear();
+
+    interface TrackCount {
+        String getChannel();
+        String getYear();
+        long getTrackCount();
+    }
 }
