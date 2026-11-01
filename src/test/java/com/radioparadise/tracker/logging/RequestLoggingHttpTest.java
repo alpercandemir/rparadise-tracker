@@ -2,17 +2,21 @@ package com.radioparadise.tracker.logging;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Map;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestComponent;
+import org.springframework.boot.web.servlet.ServletRegistrationBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
 
 @SpringBootTest(classes = RequestLoggingHttpTest.TestApplication.class,
@@ -37,15 +41,20 @@ class RequestLoggingHttpTest {
     }
 
     @Configuration(proxyBeanMethods = false)
+    @TestComponent
     @EnableAutoConfiguration(exclude = DataSourceAutoConfiguration.class)
-    @Import({RequestLoggingFilter.class, ContextController.class})
-    static class TestApplication {}
-
-    @RestController
-    static class ContextController {
-        @GetMapping("/context")
-        Map<String, String> context() {
-            return MDC.getCopyOfContextMap();
+    @Import(RequestLoggingFilter.class)
+    static class TestApplication {
+        @Bean
+        ServletRegistrationBean<HttpServlet> contextServlet() {
+            return new ServletRegistrationBean<>(new HttpServlet() {
+                @Override
+                protected void doGet(HttpServletRequest request, HttpServletResponse response)
+                        throws IOException {
+                    response.setContentType("text/plain");
+                    response.getWriter().write(MDC.getCopyOfContextMap().toString());
+                }
+            }, "/context");
         }
     }
 }
