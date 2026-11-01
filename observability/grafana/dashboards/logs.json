@@ -8,7 +8,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "10s",
   "time": {
     "from": "now-1h",
@@ -28,6 +28,73 @@
         "current": {
           "text": "All",
           "value": "$__all"
+        },
+        "options": []
+      },
+      {
+        "name": "mdcField",
+        "label": "MDC field",
+        "type": "custom",
+        "description": "Choose the request field to filter. Values are parsed at query time, without indexing request data.",
+        "query": "userAgent,clientIp,traceId,requestId,httpMethod,requestPath,httpStatus,durationMs",
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "userAgent",
+          "value": "userAgent"
+        },
+        "options": [
+          {
+            "text": "userAgent",
+            "value": "userAgent",
+            "selected": true
+          },
+          {
+            "text": "clientIp",
+            "value": "clientIp",
+            "selected": false
+          },
+          {
+            "text": "traceId",
+            "value": "traceId",
+            "selected": false
+          },
+          {
+            "text": "requestId",
+            "value": "requestId",
+            "selected": false
+          },
+          {
+            "text": "httpMethod",
+            "value": "httpMethod",
+            "selected": false
+          },
+          {
+            "text": "requestPath",
+            "value": "requestPath",
+            "selected": false
+          },
+          {
+            "text": "httpStatus",
+            "value": "httpStatus",
+            "selected": false
+          },
+          {
+            "text": "durationMs",
+            "value": "durationMs",
+            "selected": false
+          }
+        ]
+      },
+      {
+        "name": "mdcValue",
+        "label": "MDC value (exact or regex)",
+        "type": "textbox",
+        "description": "Case-sensitive. Use .* for all logs, sinan-was-here for an exact value, or .*Chrome.* to match part of a value.",
+        "query": ".*",
+        "current": {
+          "text": ".*",
+          "value": ".*"
         },
         "options": []
       },
@@ -57,7 +124,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Choose a **log level**, search text, and time range above. **All** includes startup lines and exception details. Expand an entry to inspect labels and its complete stack trace. DEBUG/TRACE appear only when enabled in the application. The panel shows at most 2,000 entries: narrow the time range to inspect a busy period. For live tail, open **Explore \u2192 Loki**, query `{service=\"app\"}`, and select **Live**. Existing logs are retained for 7 days."
+        "content": "Choose **MDC field** and enter an **MDC value**: `sinan-was-here` matches exactly; `.*Chrome.*` matches part of a value. Reset to `.*` to show all logs, including those without request context. Filters apply to the chart and both log panels. **Search text** searches the entire log line. Values are case-sensitive. Expand a log entry to inspect parsed MDC fields. Retention is 7 days; panels show up to 2,000 entries. Narrow the time range for busy periods. For live tail, use **Explore \u2192 Loki \u2192 Live**."
       }
     },
     {
@@ -77,7 +144,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by(severity) (count_over_time({job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"${level:regex}\" |= \"${search}\"[$__auto]))",
+          "expr": "sum by(severity) (count_over_time({job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"${level:regex}\" |= ${search:json} | pattern `<_> traceId=<traceId> requestId=<requestId> clientIp=\"<clientIp>\" httpMethod=\"<httpMethod>\" requestPath=\"<requestPath>\" userAgent=\"<userAgent>\" httpStatus=<httpStatus> durationMs=<durationMs> <_>` | ${mdcField:raw} =~ ${mdcValue:json} | keep severity [$__auto]))",
           "queryType": "range",
           "maxLines": 2000,
           "legendFormat": "{{severity}}"
@@ -114,7 +181,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"${level:regex}\" |= \"${search}\"",
+          "expr": "{job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"${level:regex}\" |= ${search:json} | pattern `<_> traceId=<traceId> requestId=<requestId> clientIp=\"<clientIp>\" httpMethod=\"<httpMethod>\" requestPath=\"<requestPath>\" userAgent=\"<userAgent>\" httpStatus=<httpStatus> durationMs=<durationMs> <_>` | ${mdcField:raw} =~ ${mdcValue:json}",
           "queryType": "range",
           "maxLines": 2000,
           "legendFormat": "{{severity}}"
@@ -152,7 +219,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"WARN|ERROR|FATAL\" |= \"${search}\"",
+          "expr": "{job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"WARN|ERROR|FATAL\" |= ${search:json} | pattern `<_> traceId=<traceId> requestId=<requestId> clientIp=\"<clientIp>\" httpMethod=\"<httpMethod>\" requestPath=\"<requestPath>\" userAgent=\"<userAgent>\" httpStatus=<httpStatus> durationMs=<durationMs> <_>` | ${mdcField:raw} =~ ${mdcValue:json}",
           "queryType": "range",
           "maxLines": 2000,
           "legendFormat": "{{severity}}"
