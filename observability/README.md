@@ -36,6 +36,20 @@ parse historical plain-text severity and retain unclassified startup lines in Al
 `job="docker"` production records are shown, excluding isolated pipeline validation fixtures.
 Grafana Explore's Live mode can tail `{job="docker",service="app"}`.
 
+The **MDC field** dropdown selects `userAgent`, `clientIp`, `traceId`, `requestId`,
+`httpMethod`, `requestPath`, `httpStatus` or `durationMs`. Enter a case-sensitive
+exact value in **MDC value (exact or regex)**, for example `sinan-was-here`, or a
+regular expression such as `.*Chrome.*` for a partial match. Reset the value to `.*`
+to include all logs, including historical/startup/collector lines without MDC.
+These controls filter the volume chart and both log panels. **Search text** remains
+a separate literal search across the entire log line.
+
+MDC fields are extracted from the fixed request-context prefix at query time;
+they are not indexed stream labels and do not appear in Loki's label-selector menu.
+The volume query discards per-request fields after filtering to keep its series
+bounded by severity. No ingestion/schema change or reprocessing is needed for
+existing logs. Quoted textbox values use JSON escaping in LogQL.
+
 ### Request context (MDC)
 
 Backend request logs include `traceId`, `requestId`, `clientIp`, `userAgent`,
