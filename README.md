@@ -1,5 +1,15 @@
 # Radio Paradise Tracker
 
+**Unofficial Radio Paradise Tracker**
+
+This is an independent, non-commercial, open-source project created for music discovery and historical playback statistics.
+
+This project is not affiliated with, endorsed by, or officially connected to Radio Paradise.
+
+Radio Paradise and its trademarks belong to their respective owners. Music metadata is provided for informational purposes.
+
+Visit [Radio Paradise](https://radioparadise.com/) to listen to the original broadcasts.
+
 A Java 25 + Spring Boot application with a Vue 3 dashboard that continuously tracks songs on Radio Paradise's Main, Mellow, and Rock mixes, stores observed playback history, and exposes the data through a REST API.
 
 ## Features
