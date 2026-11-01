@@ -45,6 +45,7 @@ class RecordsPostgresTest {
     @Autowired com.radioparadise.tracker.controller.SongController songController;
     @MockitoBean SongTrackerScheduler scheduler;
     @MockitoBean com.radioparadise.tracker.client.LyricsClient lyricsClient;
+    @MockitoBean com.radioparadise.tracker.client.LrclibClient lrclibClient;
     @MockitoBean com.radioparadise.tracker.client.MusicBrainzClient musicBrainzClient;
     RestClient http = RestClient.create();
 
@@ -92,6 +93,45 @@ class RecordsPostgresTest {
         assertThat(items(get("/api/records/tracks")).getFirst().get("title")).isEqualTo("Details");
         recordsController.clearCaches();
         assertThat(items(get("/api/records/tracks")).getFirst().get("title")).isEqualTo("Changed later");
+    }
+
+    @Test
+    void fallbackLyricsPersistWithoutChangingStatisticsAndRpCanReplaceThem() {
+        Song song = songs.save(song("Fallback details", "1"));
+        String source = "https://lrclib.net/api/get/123";
+        org.mockito.Mockito.when(lyricsClient.find(null, "Artist", "Fallback details", "Album", "1"))
+                .thenReturn(new com.radioparadise.tracker.client.LyricsClient.Result(
+                        "not_found", null, "https://radioparadise.com/music/song/12", 120.0, 12L));
+        org.mockito.Mockito.when(lrclibClient.find("Artist", "Fallback details", "Album", 120.0))
+                .thenReturn(new com.radioparadise.tracker.client.LrclibClient.Result("found", "Fallback text", source));
+
+        Map<?, ?> details = get("/api/songs/" + song.getId());
+
+        assertThat(details.get("lyrics")).isEqualTo("Fallback text");
+        assertThat(details.get("lyricsSource")).isEqualTo(source);
+        Song enriched = songs.findById(song.getId()).orElseThrow();
+        assertThat(enriched.getLyrics()).isEqualTo("Fallback text");
+        assertThat(enriched.getLyricsSource()).isEqualTo(source);
+        assertThat(enriched.getRpSongId()).isEqualTo(12L);
+        assertThat(enriched.getDurationSeconds()).isEqualTo(120.0);
+        assertThat(enriched.getPlayCount()).isEqualTo(song.getPlayCount());
+        assertThat(enriched.getFirstPlayed()).isEqualTo(song.getFirstPlayed());
+        assertThat(enriched.getLastPlayed()).isEqualTo(song.getLastPlayed());
+        assertThat(plays.count()).isZero();
+
+        // Expire the persisted fallback and the independent HTTP response cache.
+        jdbc.update("update song set metadata_checked_at = ? where id = ?",
+                java.sql.Timestamp.from(Instant.now().minusSeconds(86401)), song.getId());
+        songController.clearCache();
+        org.mockito.Mockito.when(lyricsClient.find(12L, "Artist", "Fallback details", "Album", "1"))
+                .thenReturn(new com.radioparadise.tracker.client.LyricsClient.Result(
+                        "found", "RP text", "https://radioparadise.com/music/song/12", 120.0, 12L));
+
+        assertThat(get("/api/songs/" + song.getId()).get("lyrics")).isEqualTo("RP text");
+        assertThat(songs.findById(song.getId()).orElseThrow().getLyricsSource())
+                .isEqualTo("https://radioparadise.com/music/song/12");
+        org.mockito.Mockito.verify(lrclibClient, org.mockito.Mockito.times(1))
+                .find("Artist", "Fallback details", "Album", 120.0);
     }
 
     @Test
