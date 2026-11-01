@@ -36,6 +36,40 @@ parse historical plain-text severity and retain unclassified startup lines in Al
 `job="docker"` production records are shown, excluding isolated pipeline validation fixtures.
 Grafana Explore's Live mode can tail `{job="docker",service="app"}`.
 
+### Request context (MDC)
+
+Backend request logs include `traceId`, `requestId`, `clientIp`, `userAgent`,
+`httpMethod` and `requestPath`. A completion entry adds `httpStatus` and `durationMs`.
+Application logs emitted during the same synchronous request carry the same context;
+the previous thread context is restored on success and failure. Error dispatches reuse
+the original IDs and path without adding a second completion entry. Scheduled collector
+logs have no HTTP context. Successful actuator requests log completion at DEBUG to avoid
+health-check/scrape noise; server failures log at WARN.
+
+Responses include `X-Trace-ID` and `X-Request-ID`. A valid version-00 W3C `traceparent`
+supplies the trace ID; otherwise the app generates a 32-character hexadecimal ID.
+`X-Request-ID` is accepted only when it contains 1–64 letters, digits, dots, underscores
+or hyphens; otherwise it is regenerated. These IDs correlate logs, without installing
+distributed tracing or creating/exporting spans. Request headers are untrusted correlation
+values, not proof of identity.
+
+Tomcat's native forwarded-header handling resolves `clientIp` from Caddy's
+`X-Forwarded-For` using its internal-proxy trust rules. The filter uses `getRemoteAddr()`
+and never parses forwarded headers itself. Keep the backend port private as in Compose;
+adjust `server.tomcat.remoteip.internal-proxies` for a different trusted proxy network,
+or set `SERVER_FORWARD_HEADERS_STRATEGY=NONE` for a direct deployment.
+See [Spring Boot's proxy configuration](https://docs.spring.io/spring-boot/4.0/how-to/webserver.html#howto.webserver.use-behind-a-proxy-server).
+
+User agents are capped at 512 characters and paths at 2048; control characters are
+replaced and quotes/backslashes escaped. Query strings, bodies, cookies, authorization
+and arbitrary headers are excluded. Client IP and user agent remain in log text and
+follow Loki's seven-day retention; they are never metric tags or indexed Loki labels.
+Search an ID in the Application Logs dashboard text filter, or in Explore:
+
+```logql
+{job="docker",service="app"} |= "traceId=4bf92f3577b34da6a3ce929d0e0e4736"
+```
+
 Alloy groups new Java stack traces while per-file labels still separate containers, then assigns
 a bounded lowercase `level` label. Multiline grouping flushes after 3 seconds or 256 lines.
 It does not drop logs by severity or enable otherwise-disabled application DEBUG/TRACE logging.
