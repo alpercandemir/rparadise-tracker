@@ -8,7 +8,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "refresh": "10s",
   "time": {
     "from": "now-1h",
@@ -88,13 +88,13 @@
       },
       {
         "name": "mdcValue",
-        "label": "MDC value (exact or regex)",
+        "label": "MDC value (contains)",
         "type": "textbox",
-        "description": "Case-sensitive. Use .* for all logs, sinan-was-here for an exact value, or .*Chrome.* to match part of a value.",
-        "query": ".*",
+        "description": "Case-sensitive literal match within the selected field. Leave empty to include all logs, including records without MDC.",
+        "query": "",
         "current": {
-          "text": ".*",
-          "value": ".*"
+          "text": "",
+          "value": ""
         },
         "options": []
       },
@@ -124,7 +124,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Choose **MDC field** and enter an **MDC value**: `sinan-was-here` matches exactly; `.*Chrome.*` matches part of a value. Reset to `.*` to show all logs, including those without request context. Filters apply to the chart and both log panels. **Search text** searches the entire log line. Values are case-sensitive. Expand a log entry to inspect parsed MDC fields. Retention is 7 days; panels show up to 2,000 entries. Narrow the time range for busy periods. For live tail, use **Explore \u2192 Loki \u2192 Live**."
+        "content": "Choose **MDC field** and enter an **MDC value**: `sinan-was-here` or `Chrome` matches text within that field. Leave the value empty to show all logs, including those without request context. Filters apply to the chart and both log panels. **Search text** searches the entire log line. Values are literal and case-sensitive. Expand a log entry to inspect parsed MDC fields. Retention is 7 days; panels show up to 2,000 entries. Narrow the time range for busy periods. For live tail, use **Explore \u2192 Loki \u2192 Live**."
       }
     },
     {
@@ -144,7 +144,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by(severity) (count_over_time({job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"${level:regex}\" |= ${search:json} | pattern `<_> traceId=<traceId> requestId=<requestId> clientIp=\"<clientIp>\" httpMethod=\"<httpMethod>\" requestPath=\"<requestPath>\" userAgent=\"<userAgent>\" httpStatus=<httpStatus> durationMs=<durationMs> <_>` | ${mdcField:raw} =~ ${mdcValue:json} | keep severity [$__auto]))",
+          "expr": "sum by(severity) (count_over_time({job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"${level:regex}\" | label_format textMatch=`{{ contains (urldecode \"${search:percentencode}\") (__line__) }}` | textMatch=\"true\" | drop textMatch | pattern `<_> traceId=<traceId> requestId=<requestId> clientIp=\"<clientIp>\" httpMethod=\"<httpMethod>\" requestPath=\"<requestPath>\" userAgent=\"<userAgent>\" httpStatus=<httpStatus> durationMs=<durationMs> <_>` | label_format mdcMatch=`{{ contains (urldecode \"${mdcValue:percentencode}\") (default \"\" .${mdcField:raw}) }}` | mdcMatch=\"true\" | drop mdcMatch | keep severity [$__auto]))",
           "queryType": "range",
           "maxLines": 2000,
           "legendFormat": "{{severity}}"
@@ -181,7 +181,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"${level:regex}\" |= ${search:json} | pattern `<_> traceId=<traceId> requestId=<requestId> clientIp=\"<clientIp>\" httpMethod=\"<httpMethod>\" requestPath=\"<requestPath>\" userAgent=\"<userAgent>\" httpStatus=<httpStatus> durationMs=<durationMs> <_>` | ${mdcField:raw} =~ ${mdcValue:json}",
+          "expr": "{job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"${level:regex}\" | label_format textMatch=`{{ contains (urldecode \"${search:percentencode}\") (__line__) }}` | textMatch=\"true\" | drop textMatch | pattern `<_> traceId=<traceId> requestId=<requestId> clientIp=\"<clientIp>\" httpMethod=\"<httpMethod>\" requestPath=\"<requestPath>\" userAgent=\"<userAgent>\" httpStatus=<httpStatus> durationMs=<durationMs> <_>` | label_format mdcMatch=`{{ contains (urldecode \"${mdcValue:percentencode}\") (default \"\" .${mdcField:raw}) }}` | mdcMatch=\"true\" | drop mdcMatch",
           "queryType": "range",
           "maxLines": 2000,
           "legendFormat": "{{severity}}"
@@ -219,7 +219,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"WARN|ERROR|FATAL\" |= ${search:json} | pattern `<_> traceId=<traceId> requestId=<requestId> clientIp=\"<clientIp>\" httpMethod=\"<httpMethod>\" requestPath=\"<requestPath>\" userAgent=\"<userAgent>\" httpStatus=<httpStatus> durationMs=<durationMs> <_>` | ${mdcField:raw} =~ ${mdcValue:json}",
+          "expr": "{job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"WARN|ERROR|FATAL\" | label_format textMatch=`{{ contains (urldecode \"${search:percentencode}\") (__line__) }}` | textMatch=\"true\" | drop textMatch | pattern `<_> traceId=<traceId> requestId=<requestId> clientIp=\"<clientIp>\" httpMethod=\"<httpMethod>\" requestPath=\"<requestPath>\" userAgent=\"<userAgent>\" httpStatus=<httpStatus> durationMs=<durationMs> <_>` | label_format mdcMatch=`{{ contains (urldecode \"${mdcValue:percentencode}\") (default \"\" .${mdcField:raw}) }}` | mdcMatch=\"true\" | drop mdcMatch",
           "queryType": "range",
           "maxLines": 2000,
           "legendFormat": "{{severity}}"
