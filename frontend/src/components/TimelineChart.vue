@@ -1,370 +1,70 @@
 <template>
   <div class="decade-chart-wrapper">
-    <div class="chart-container">
-      <Doughnut :data="chartData" :options="chartOptions" @click="handleChartClick" />
-    </div>
-    
-    <!-- Song Panel for Selected Decade -->
-    <transition name="slide-fade">
-      <div v-if="selectedDecade" class="song-panel">
-        <div class="panel-header">
-          <h4>{{ selectedDecade }} Songs ({{ filteredSongs.length }})</h4>
-          <button @click="selectedDecade = null" class="close-btn">✕</button>
-        </div>
-        <div class="panel-content">
-          <div v-for="song in filteredSongs" :key="song.id" class="song-item" role="button" tabindex="0"
-            :aria-label="`View details for ${song.title} by ${song.artist}`"
-            @click="$emit('select-song', song)" @keydown.enter.prevent="$emit('select-song', song)"
-            @keydown.space.prevent="$emit('select-song', song)">
-            <img 
-              v-if="song.coverUrl" 
-              :src="song.coverUrl" 
-              :alt="song.album"
-              class="song-cover"
-            />
-            <div class="song-info">
-              <div class="song-title">{{ song.title }}</div>
-              <div class="song-artist">{{ song.artist }}</div>
-              <div class="song-meta">
-                <span class="year">{{ song.year }}</span>
-                <span class="plays">▶ {{ song.playCount }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+    <div class="decade-summary">
+      <div class="chart-container"><Doughnut :data="chartData" :options="chartOptions" aria-label="Distribution of tracks by decade; select a decade below to explore" role="img" /></div>
+      <div class="decade-options" aria-label="Browse tracks by decade">
+        <p class="hint">Choose a decade to explore its tracks.</p>
+        <button v-for="(label, index) in chartData.labels" :key="label" class="decade-option"
+          :aria-pressed="selectedDecade === label" @click="selectedDecade = label">
+          <span class="swatch" :style="{ background: colors[index] }" aria-hidden="true"></span>
+          <span>{{ label }}</span><strong>{{ chartData.datasets[0].data[index] }} tracks</strong>
+        </button>
       </div>
-    </transition>
+    </div>
+    <section v-if="selectedDecade" class="song-panel" aria-label="Selected decade tracks">
+      <div class="panel-header"><h4>{{ selectedDecade }} · {{ filteredSongs.length }} tracks</h4>
+        <button @click="selectedDecade = null" class="close-btn" aria-label="Close decade tracks">✕</button>
+      </div>
+      <div class="panel-content">
+        <button v-for="song in filteredSongs" :key="song.id" class="song-item" @click="$emit('select-song', song)"
+          :aria-label="`View details for ${song.title} by ${song.artist}`">
+          <AlbumArtwork :src="song.coverUrl" :album="song.album" class="song-cover" loading="lazy" />
+          <span class="song-info"><span class="song-title">{{ song.title }}</span><span class="song-artist">{{ song.artist }} · {{ song.year }}</span></span>
+        </button>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-defineEmits(['select-song'])
 import { ref, computed } from 'vue'
 import { Doughnut } from 'vue-chartjs'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
-
+import AlbumArtwork from './AlbumArtwork.vue'
+import { getDecade, groupDecades } from '../services/charts.js'
 ChartJS.register(ArcElement, Tooltip, Legend)
-
-const props = defineProps({
-  songs: Array
-})
-
+defineEmits(['select-song'])
+const props = defineProps({ songs: Array })
 const selectedDecade = ref(null)
-
-const getDecade = (year) => {
-  if (!year || year === 'Unknown') return 'Unknown'
-  const yearNum = parseInt(year)
-  if (isNaN(yearNum)) return 'Unknown'
-  
-  if (yearNum < 1980) return "70s & Earlier"
-  if (yearNum < 1990) return "80s"
-  if (yearNum < 2000) return "90s"
-  if (yearNum < 2010) return "2000s"
-  if (yearNum < 2020) return "2010s"
-  return "2020s"
-}
-
+const colors = ['#5145a6', '#9a3971', '#176d82', '#94703a', '#44806b', '#807097']
 const chartData = computed(() => {
-  // Group songs by decade
-  const decadeGroups = {}
-  
-  props.songs.forEach(song => {
-    const decade = getDecade(song.year)
-    
-    if (!decadeGroups[decade]) {
-      decadeGroups[decade] = 0
-    }
-    decadeGroups[decade]++
-  })
-
-  // Remove 'Unknown' if it exists
-  delete decadeGroups['Unknown']
-
-  // Define order for decades
-  const decadeOrder = ["70s & Earlier", "80s", "90s", "2000s", "2010s", "2020s"]
-  const labels = []
-  const data = []
-  
-  decadeOrder.forEach(decade => {
-    if (decadeGroups[decade]) {
-      labels.push(decade)
-      data.push(decadeGroups[decade])
-    }
-  })
-
-  return {
-    labels,
-    datasets: [{
-      data,
-      backgroundColor: [
-        '#667eea', // 70s & Earlier - Purple
-        '#f093fb', // 80s - Pink
-        '#4facfe', // 90s - Blue
-        '#00f2fe', // 2000s - Cyan
-        '#43e97b', // 2010s - Green
-        '#fa709a', // 2020s - Rose
-      ],
-      borderWidth: 4,
-      borderColor: '#fff',
-      hoverOffset: 15
-    }]
-  }
+  const groups = groupDecades(props.songs)
+  return { labels: groups.map(group => group.label), datasets: [{ data: groups.map(group => group.count), backgroundColor: colors, borderWidth: 4, borderColor: '#fff', hoverOffset: 4 }] }
 })
-
 const chartOptions = {
-  responsive: true,
-  maintainAspectRatio: true,
-  onClick: (event, elements) => {
-    if (elements.length > 0) {
-      const index = elements[0].index
-      const decade = chartData.value.labels[index]
-      selectedDecade.value = decade
-    }
-  },
-  plugins: {
-    legend: {
-      position: 'right',
-      labels: {
-        padding: 20,
-        font: {
-          size: 16,
-          family: 'Inter',
-          weight: '600'
-        },
-        color: '#1a202c',
-        usePointStyle: true,
-        pointStyle: 'circle',
-        boxWidth: 12,
-        boxHeight: 12,
-        generateLabels: function(chart) {
-          const data = chart.data;
-          if (data.labels.length && data.datasets.length) {
-            return data.labels.map((label, i) => {
-              const value = data.datasets[0].data[i];
-              const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
-              const percentage = ((value / total) * 100).toFixed(1);
-              return {
-                text: `${label}: ${percentage}%`,
-                fillStyle: data.datasets[0].backgroundColor[i],
-                hidden: false,
-                index: i
-              };
-            });
-          }
-          return [];
-        }
-      }
-    },
-    tooltip: {
-      backgroundColor: 'rgba(0, 0, 0, 0.9)',
-      padding: 16,
-      cornerRadius: 10,
-      titleFont: {
-        size: 16,
-        family: 'Inter',
-        weight: 'bold'
-      },
-      bodyFont: {
-        size: 15,
-        family: 'Inter'
-      },
-      callbacks: {
-        label: function(context) {
-          const label = context.label || '';
-          const value = context.parsed;
-          const total = context.dataset.data.reduce((a, b) => a + b, 0);
-          const percentage = ((value / total) * 100).toFixed(1);
-          return `${value} songs (${percentage}%) - Click to view`;
-        }
-      }
-    }
-  }
+  responsive: true, maintainAspectRatio: false, cutout: '65%',
+  onClick: (_event, elements) => { if (elements.length) selectedDecade.value = chartData.value.labels[elements[0].index] },
+  plugins: { legend: { display: false } }
 }
-
-const filteredSongs = computed(() => {
-  if (!selectedDecade.value) return []
-  
-  return props.songs.filter(song => {
-    return getDecade(song.year) === selectedDecade.value
-  }).sort((a, b) => b.playCount - a.playCount)
-})
-
-const handleChartClick = () => {
-  // Event is handled by chartOptions.onClick
-}
+const filteredSongs = computed(() => props.songs.filter(song => getDecade(song.year) === selectedDecade.value).sort((a, b) => b.playCount - a.playCount))
 </script>
 
 <style scoped>
-.song-item { cursor: pointer; }
-.song-item:focus-visible { outline: 3px solid var(--primary); }
-.decade-chart-wrapper {
-  position: relative;
-  display: flex;
-  gap: 2rem;
-}
-
-.chart-container {
-  flex: 1;
-  position: relative;
-  height: 350px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.song-panel {
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 350px;
-  max-height: 500px;
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
-  z-index: 10;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.25rem 1.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.panel-header h4 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.close-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: white;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 1.2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.close-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.1);
-}
-
-.panel-content {
-  max-height: 440px;
-  overflow-y: auto;
-  padding: 1rem;
-}
-
-.song-item {
-  display: flex;
-  gap: 1rem;
-  padding: 0.75rem;
-  border-radius: 10px;
-  margin-bottom: 0.75rem;
-  background: rgba(255, 255, 255, 0.5);
-  transition: all 0.2s;
-}
-
-.song-item:hover {
-  background: rgba(102, 126, 234, 0.1);
-  transform: translateX(-4px);
-}
-
-.song-cover {
-  width: 50px;
-  height: 50px;
-  border-radius: 8px;
-  object-fit: cover;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.song-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.song-title {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #2d3748;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 0.25rem;
-}
-
-.song-artist {
-  font-size: 0.85rem;
-  color: #718096;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 0.25rem;
-}
-
-.song-meta {
-  display: flex;
-  gap: 1rem;
-  font-size: 0.8rem;
-  color: #a0aec0;
-}
-
-.year {
-  font-weight: 600;
-}
-
-.plays {
-  color: #667eea;
-}
-
-/* Smooth scrollbar for panel */
-.panel-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.panel-content::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 3px;
-}
-
-.panel-content::-webkit-scrollbar-thumb {
-  background: rgba(102, 126, 234, 0.3);
-  border-radius: 3px;
-}
-
-.panel-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(102, 126, 234, 0.5);
-}
-
-/* Slide fade transition */
-.slide-fade-enter-active {
-  transition: all 0.3s ease-out;
-}
-
-.slide-fade-leave-active {
-  transition: all 0.2s ease-in;
-}
-
-.slide-fade-enter-from {
-  transform: translateX(20px);
-  opacity: 0;
-}
-
-.slide-fade-leave-to {
-  transform: translateX(20px);
-  opacity: 0;
-}
+.decade-summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 2rem; max-width: 850px; margin: auto; }
+.chart-container { width: min(100%, 260px); height: 260px; justify-self: center; }
+.hint { font-size: .85rem; color: var(--text-secondary); margin-bottom: .75rem; }
+.decade-option { width: 100%; display: flex; align-items: center; gap: .65rem; padding: .75rem; min-height: 44px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--text-primary); text-align: left; cursor: pointer; font-size: .9rem; }
+.decade-option:hover, .decade-option[aria-pressed="true"] { background: #f1eef9; border-color: #d9d4ef; }
+.swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.decade-option strong { margin-left: auto; color: var(--text-secondary); font-size: .8rem; font-weight: 500; white-space: nowrap; }
+.song-panel { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e3e3ee; }
+.panel-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: .75rem; }
+.close-btn { width: 44px; height: 44px; border: 0; border-radius: 8px; background: #eeecf7; color: var(--primary); cursor: pointer; }
+.panel-content { max-height: 360px; overflow-y: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; padding: .25rem; }
+.song-item { display: flex; align-items: center; gap: .75rem; padding: .75rem; border: 0; border-radius: 8px; background: #f8f7fb; text-align: left; color: var(--text-primary); cursor: pointer; }
+.song-cover { width: 44px; height: 44px; }
+.song-info { min-width: 0; overflow-wrap: anywhere; }
+.song-title { display: block; font-size: .9rem; font-weight: 600; }
+.song-artist { display: block; font-size: .8rem; color: var(--text-secondary); }
+@media (max-width: 640px) { .decade-summary, .panel-content { grid-template-columns: 1fr; } .decade-summary { gap: 1rem; } }
 </style>

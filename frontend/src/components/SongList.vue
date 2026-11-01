@@ -18,16 +18,7 @@
           @keydown.enter.prevent="$emit('select-song', song)"
           @keydown.space.prevent="$emit('select-song', song)"
         >
-          <img
-            v-if="song.coverUrl"
-            :src="song.coverUrl"
-            :alt="`${song.album} cover`"
-            class="song-cover"
-            @error="handleImageError"
-          />
-          <div v-else class="song-cover-placeholder">
-            <span>🎵</span>
-          </div>
+          <AlbumArtwork :src="song.coverUrl" :album="song.album" class="song-cover" loading="lazy" />
 
           <div class="song-details">
             <p class="song-name">{{ song.title }}</p>
@@ -55,16 +46,13 @@
 
 <script setup>
 defineEmits(['select-song'])
+import AlbumArtwork from './AlbumArtwork.vue'
 import { CHANNELS } from '../services/api.js'
 
 defineProps({
   songs: Array,
   title: String
 })
-
-const handleImageError = (e) => {
-  e.target.style.display = 'none'
-}
 
 const getChannelName = (channelId) => {
   if (Object.values(CHANNELS).some(channel => channel.name === channelId)) {
@@ -91,157 +79,22 @@ const getChannelStyle = (channelId) => {
 </script>
 
 <style scoped>
-.song-item { cursor: pointer; }
-.song-item:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
-.song-list {
-  padding: 2rem;
-}
+.song-item { cursor: pointer; display: flex; align-items: center; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid #eeedf4; }
+.song-item:last-child { border-bottom: 0; }
+.song-item:hover { background: #f7f6fb; }
+.song-list { padding: 1.5rem; }
+.list-title { font-size: 1.15rem; margin-bottom: .75rem; }
+.empty-state { text-align: center; padding: 3rem; color: var(--text-secondary); }
+.empty-icon { display: block; font-size: 2rem; }
+.list-container { max-height: 600px; overflow-y: auto; padding: .25rem; }
+.song-cover { width: 56px; height: 56px; }
+.song-details { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.song-name { font-weight: 600; font-size: .95rem; }
+.song-meta { font-size: .85rem; color: var(--text-secondary); }
+.song-meta-secondary { font-size: .78rem; color: var(--text-secondary); }
+.song-actions { display: flex; flex-direction: column; align-items: flex-end; gap: .5rem; flex-shrink: 0; }
+.channel-tag { padding: .2rem .6rem; border-radius: 6px; font-size: .7rem; font-weight: 650; }
+.play-count { font-size: .8rem; color: var(--text-secondary); }
+@media (max-width: 640px) { .song-list { padding: 1rem; } .song-item { flex-wrap: wrap; gap: .75rem; } .song-actions { flex-direction: row; width: 100%; justify-content: space-between; padding-left: 68px; } }
 
-.list-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 1.5rem;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 4rem 2rem;
-  color: var(--text-secondary);
-}
-
-.empty-icon {
-  font-size: 4rem;
-  display: block;
-  margin-bottom: 1rem;
-  opacity: 0.5;
-}
-
-.list-container {
-  max-height: 600px;
-  overflow-y: auto;
-  padding-right: 0.5rem;
-}
-
-.songs-grid {
-  display: grid;
-  gap: 1rem;
-}
-
-.song-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: rgba(102, 126, 234, 0.05);
-  border-radius: 12px;
-  transition: all 0.3s ease;
-}
-
-.song-item:hover {
-  background: rgba(102, 126, 234, 0.1);
-  transform: translateX(4px);
-}
-
-.song-cover {
-  width: 60px;
-  height: 60px;
-  border-radius: 8px;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.song-cover-placeholder {
-  width: 60px;
-  height: 60px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  flex-shrink: 0;
-}
-
-.song-details {
-  flex: 1;
-  min-width: 0;
-}
-
-.song-name {
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 0.25rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.song-meta {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.125rem;
-}
-
-.song-meta-secondary {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.song-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  align-items: flex-end;
-  flex-shrink: 0;
-}
-
-.channel-tag {
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.play-count {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.count-icon {
-  font-size: 1rem;
-}
-
-.list-enter-active,
-.list-leave-active {
-  transition: all 0.5s ease;
-}
-
-.list-enter-from {
-  opacity: 0;
-  transform: translateX(-30px);
-}
-
-.list-leave-to {
-  opacity: 0;
-  transform: translateX(30px);
-}
-
-@media (max-width: 640px) {
-  .song-item {
-    flex-wrap: wrap;
-  }
-
-  .song-actions {
-    flex-direction: row;
-    width: 100%;
-    justify-content: space-between;
-  }
-}
 </style>

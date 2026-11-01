@@ -1,6 +1,12 @@
 <template>
-  <div class="chart-container">
-    <Doughnut :data="chartData" :options="chartOptions" />
+  <div class="channel-summary">
+    <div class="chart-container"><Doughnut :data="chartData" :options="chartOptions" aria-label="Distribution of saved tracks by channel" role="img" /></div>
+    <ul class="legend" aria-label="Tracks by channel">
+      <li v-for="(channel, id) in CHANNELS" :key="id">
+        <span class="swatch" :style="{ background: channel.color }" aria-hidden="true"></span>
+        <span>{{ channel.name }}</span><strong>{{ counts[id] }} <span>tracks</span></strong>
+      </li>
+    </ul>
   </div>
 </template>
 
@@ -9,72 +15,29 @@ import { computed } from 'vue'
 import { Doughnut } from 'vue-chartjs'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { CHANNELS } from '../services/api.js'
-
 ChartJS.register(ArcElement, Tooltip, Legend)
-
-const props = defineProps({
-  songs: Array
+const props = defineProps({ songs: Array })
+const counts = computed(() => {
+  const totals = { '0': 0, '1': 0, '2': 0 }
+  for (const song of props.songs) {
+    const id = Object.keys(CHANNELS).find(id => song.channel === id || song.channel === CHANNELS[id].name)
+    if (id !== undefined) totals[id]++
+  }
+  return totals
 })
-
-const chartData = computed(() => {
-  const channelCounts = {
-    '0': 0,
-    '1': 0,
-    '2': 0
-  }
-
-  props.songs.forEach(song => {
-    if (channelCounts.hasOwnProperty(song.channel)) {
-      channelCounts[song.channel]++
-    }
-  })
-
-  return {
-    labels: Object.values(CHANNELS).map(channel => channel.name),
-    datasets: [{
-      data: [channelCounts['0'], channelCounts['1'], channelCounts['2']],
-      backgroundColor: Object.values(CHANNELS).map(channel => channel.color),
-      borderWidth: 0,
-      hoverOffset: 10
-    }]
-  }
-})
-
-const chartOptions = {
-  responsive: true,
-  maintainAspectRatio: true,
-  plugins: {
-    legend: {
-      position: 'bottom',
-      labels: {
-        padding: 20,
-        font: {
-          size: 13,
-          family: 'Inter'
-        }
-      }
-    },
-    tooltip: {
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-      padding: 12,
-      cornerRadius: 8,
-      titleFont: {
-        size: 14
-      },
-      bodyFont: {
-        size: 13
-      }
-    }
-  }
-}
+const chartData = computed(() => ({
+  labels: Object.values(CHANNELS).map(channel => channel.name),
+  datasets: [{ data: Object.values(counts.value), backgroundColor: Object.values(CHANNELS).map(channel => channel.color), borderWidth: 4, borderColor: '#fff', hoverOffset: 4 }]
+}))
+const chartOptions = { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } }
 </script>
 
 <style scoped>
-.chart-container {
-  position: relative;
-  height: 300px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+.channel-summary { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 2rem; padding: 1.5rem 0; }
+.chart-container { width: min(100%, 280px); height: 280px; }
+.legend { list-style: none; width: min(100%, 340px); }
+.legend li { display: flex; align-items: center; gap: .7rem; padding: .75rem 0; border-bottom: 1px solid #eeedf4; font-size: .95rem; }
+.swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+strong { margin-left: auto; font-variant-numeric: tabular-nums; }
+strong span { font-size: .8rem; font-weight: 400; color: var(--text-secondary); }
 </style>

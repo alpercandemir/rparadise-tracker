@@ -8,9 +8,7 @@
       </div>
       <div class="detail-scroll">
         <div class="detail-overview">
-          <img v-if="track.coverUrl && !coverFailed" :src="track.coverUrl" :alt="`${track.album} cover`"
-            class="large-cover" @error="coverFailed = true" />
-          <div v-else class="large-cover cover-placeholder" aria-label="No artwork available">♪</div>
+          <AlbumArtwork :src="track.coverUrl" :album="track.album" class="large-cover" />
           <div class="detail-facts">
             <p class="channel">{{ CHANNELS[track.channel]?.name || track.channel }}</p>
             <h2 id="song-detail-title">{{ track.title }}</h2>
@@ -45,6 +43,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import AlbumArtwork from './AlbumArtwork.vue'
 import { CHANNELS, radioParadiseAPI } from '../services/api.js'
 import { formatRecordTime } from '../services/records.js'
 
@@ -55,7 +54,6 @@ const details = ref(null)
 const track = computed(() => details.value?.song || props.song)
 const loading = ref(true)
 const error = ref('')
-const coverFailed = ref(false)
 let controller
 let previousOverflow
 const localTime = value => value ? formatRecordTime(value) : '—'
@@ -101,7 +99,6 @@ onBeforeUnmount(() => {
 .detail-scroll { overflow-y: auto; max-height: calc(90dvh - 73px); padding: 1.5rem; overscroll-behavior: contain; }
 .detail-overview { display: grid; grid-template-columns: minmax(200px, 320px) 1fr; gap: 1.75rem; align-items: start; }
 .large-cover { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; box-shadow: 0 8px 28px #1a1a2e26; }
-.cover-placeholder { display: grid; place-items: center; background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; font-size: 6rem; }
 .channel { font-size: .8rem; color: var(--primary); font-weight: 700; margin-bottom: .6rem; }
 h2 { font-size: clamp(1.5rem, 4vw, 2rem); line-height: 1.2; overflow-wrap: anywhere; }
 .artist { font-size: 1.15rem; margin-top: .6rem; }

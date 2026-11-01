@@ -15,6 +15,7 @@ A Java 25 + Spring Boot application with a Vue 3 dashboard that continuously tra
 - Opens song details from live cards, lists, charts, tracks, and playback history, with large artwork,
   listening statistics, and lyrics directly from Radio Paradise when available
 - Uses bounded JVM caches for RP reads and internal list/page responses (30-second TTL)
+- Uses system typography, accessible channel colors, keyboard-accessible track rankings and decade controls, and artwork placeholders for unavailable covers
 - Offers an optional Grafana, Prometheus, and Loki stack for metrics and logs
 
 ## Architecture
@@ -26,7 +27,7 @@ A Java 25 + Spring Boot application with a Vue 3 dashboard that continuously tra
   - Transactional song statistics and playback events with restart-safe deduplication
 - **Frontend:** Vue 3 + Vite (`frontend`)
   - Live dashboard cards for each channel
-  - Most-played, channel distribution, and decade charts
+  - Most-played ranking, channel distribution, and decade charts
   - Filterable song list
   - Records tables and song-details modal
 
@@ -234,7 +235,7 @@ docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 
 ## Screenshots
 
-Captured from the running app on November 1, 2026. Songs and totals change as collection continues.
+Captured from the updated frontend on November 1, 2026, using the running API. Songs and totals change as collection continues.
 
 ### Dashboard Overview
 

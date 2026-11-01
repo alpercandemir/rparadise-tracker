@@ -16,18 +16,7 @@
     </div>
 
     <div v-if="song" class="song-content">
-      <div class="album-cover-container">
-        <img
-          v-if="song.coverUrl"
-          :src="song.coverUrl"
-          :alt="`${song.album} cover`"
-          class="album-cover"
-          @error="handleImageError"
-        />
-        <div v-else class="album-cover-placeholder">
-          <span>🎵</span>
-        </div>
-      </div>
+      <AlbumArtwork :src="song.coverUrl" :album="song.album" class="album-cover" />
 
       <div class="song-info">
         <h3 class="song-title">{{ song.title }}</h3>
@@ -36,7 +25,7 @@
         <div class="song-stats">
           <span class="stat">
             <span class="stat-icon">🔁</span>
-            {{ song.playCount }} plays
+            {{ song.playCount }} {{ song.playCount === 1 ? 'play' : 'plays' }}
           </span>
           <span class="stat">
             <span class="stat-icon">⏰</span>
@@ -53,6 +42,7 @@
 </template>
 
 <script setup>
+import AlbumArtwork from './AlbumArtwork.vue'
 defineEmits(['select-song'])
 defineProps({
   channelId: String,
@@ -60,10 +50,6 @@ defineProps({
   channelColor: String,
   song: Object
 })
-
-const handleImageError = (e) => {
-  e.target.style.display = 'none'
-}
 
 const formatTime = (timestamp) => {
   const date = new Date(timestamp)
@@ -79,157 +65,21 @@ const formatTime = (timestamp) => {
 
 <style scoped>
 .current-song-card[role="button"] { cursor: pointer; }
-.current-song-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
-.current-song-card {
-  animation: slideUp 0.5s ease;
-}
+.current-song-card:hover { border-color: #bfb9d9; box-shadow: 0 6px 24px #28224910; }
+.channel-header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: 1.25rem; }
+.channel-badge { padding: .3rem .7rem; border-radius: 6px; color: white; font-size: .75rem; font-weight: 700; }
+.live-indicator { display: flex; align-items: center; gap: .4rem; color: #426152; font-size: .7rem; letter-spacing: .06em; font-weight: 700; }
+.pulse-dot { width: 6px; height: 6px; background: #33815b; border-radius: 50%; }
+.song-content { display: flex; gap: 1rem; align-items: flex-start; }
+.album-cover { width: 88px; height: 88px; }
+.song-info { flex: 1; min-width: 0; }
+.song-title { font-size: 1.05rem; line-height: 1.4; font-weight: 650; overflow-wrap: anywhere; margin-bottom: .3rem; }
+.song-artist { font-size: .95rem; color: var(--text-secondary); }
+.song-album { font-size: .8rem; color: var(--text-secondary); margin-top: .2rem; overflow-wrap: anywhere; }
+.song-stats { display: flex; flex-wrap: wrap; gap: .35rem 1rem; margin-top: .85rem; font-size: .75rem; color: var(--text-secondary); }
+.stat { display: flex; align-items: center; gap: .35rem; }
+.stat-icon { font-size: .8rem; }
+.no-song { padding: 1.5rem 0; color: var(--text-secondary); }
+@media (max-width: 380px) { .album-cover { width: 64px; height: 64px; } }
 
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.channel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.channel-badge {
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  color: white;
-  font-weight: 600;
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.live-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.pulse-dot {
-  width: 8px;
-  height: 8px;
-  background: #ef4444;
-  border-radius: 50%;
-  animation: pulse-animation 2s ease-in-out infinite;
-}
-
-@keyframes pulse-animation {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(1.2);
-  }
-}
-
-.song-content {
-  display: flex;
-  gap: 1.5rem;
-}
-
-.album-cover-container {
-  flex-shrink: 0;
-}
-
-.album-cover {
-  width: 120px;
-  height: 120px;
-  border-radius: 12px;
-  object-fit: cover;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
-
-.album-cover-placeholder {
-  width: 120px;
-  height: 120px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 3rem;
-}
-
-.song-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.song-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 0.5rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.song-artist {
-  font-size: 1rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.25rem;
-  font-weight: 500;
-}
-
-.song-album {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  margin-bottom: 1rem;
-}
-
-.song-stats {
-  display: flex;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.stat {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-}
-
-.stat-icon {
-  font-size: 1rem;
-}
-
-.no-song {
-  padding: 2rem;
-  text-align: center;
-  color: var(--text-secondary);
-  font-style: italic;
-}
-
-@media (max-width: 640px) {
-  .song-content {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-  }
-
-  .song-stats {
-    justify-content: center;
-  }
-}
 </style>

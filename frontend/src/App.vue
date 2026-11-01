@@ -2,10 +2,10 @@
   <div class="container">
     <header class="header">
       <h1 class="title">
-        <span class="icon">🎵</span>
+        <span class="icon" aria-hidden="true">♫</span>
         Radio Paradise Tracker
       </h1>
-      <p class="subtitle">Live music tracking across all channels</p>
+      <p class="subtitle">Your listening archive · Main, Mellow & Rock</p>
       <nav class="main-nav" aria-label="Main navigation">
         <a href="#/" :aria-current="!isRecords ? 'page' : undefined" :class="{ selected: !isRecords }">Dashboard</a>
         <a href="#/records" :aria-current="isRecords ? 'page' : undefined" :class="{ selected: isRecords }">Records</a>
@@ -18,10 +18,16 @@
       <p>Loading tracks...</p>
     </div>
 
+    <div v-else-if="loadError" class="load-error card" role="alert">
+      <h2>Could not load the dashboard</h2>
+      <p>{{ loadError }}</p>
+      <button @click="loadData">Try again</button>
+    </div>
+
     <div v-else class="dashboard">
       <!-- Current Playing Songs -->
       <section class="current-songs">
-        <h2 class="section-title">Now Playing</h2>
+        <div class="section-heading"><h2 class="section-title">Now Playing</h2><span>Latest observed · refreshes every 30 seconds</span></div>
         <div class="channel-grid">
           <CurrentSong
             v-for="(channel, id) in channels"
@@ -51,7 +57,7 @@
             color="var(--accent)"
           />
           <StatsCard
-            title="Recent Plays"
+            title="Recent Tracks"
             :value="recentSongs.length"
             icon="⏱️"
             color="var(--secondary)"
@@ -86,6 +92,7 @@
             v-for="tab in tabs"
             :key="tab.id"
             :class="['tab', { active: activeTab === tab.id }]"
+            :aria-pressed="activeTab === tab.id"
             @click="activeTab = tab.id"
           >
             {{ tab.label }}
@@ -119,6 +126,7 @@ import SongList from './components/SongList.vue'
 import SongDetailsModal from './components/SongDetailsModal.vue'
 
 const loading = ref(true)
+const loadError = ref('')
 const allSongs = ref([])
 const recentSongs = ref([])
 const mostPlayedSongs = ref([])
@@ -183,6 +191,7 @@ const getTabTitle = () => {
 }
 
 const loadData = async () => {
+  loadError.value = ''
   try {
     // Only show loading state on initial load (when allSongs is empty)
     if (allSongs.value.length === 0) {
@@ -199,6 +208,7 @@ const loadData = async () => {
     mostPlayedSongs.value = mostPlayed
     liveSongs.value = current
   } catch (error) {
+    loadError.value = 'Please check your connection and try again.'
     console.error('Error loading data:', error)
   } finally {
     loading.value = false
@@ -223,165 +233,32 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.main-nav { display: flex; justify-content: center; gap: .5rem; margin-top: 1.5rem; }
-.main-nav a { padding: .7rem 1.4rem; border-radius: 10px; color: white; text-decoration: none; background: rgba(255,255,255,.15); font-weight: 600; }
-.main-nav a.selected { background: white; color: var(--primary); }
-.header {
-  text-align: center;
-  margin-bottom: 3rem;
-  animation: fadeInDown 0.6s ease;
-}
+.header { position: relative; padding: .5rem 0 1.75rem; margin-bottom: 2rem; border-bottom: 1px solid #dddde9; }
+.title { display: flex; align-items: center; gap: .75rem; font-size: clamp(1.5rem, 3vw, 2rem); line-height: 1.2; letter-spacing: -.035em; font-weight: 700; }
+.icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--primary); color: white; font-size: 1.65rem; flex-shrink: 0; }
+.subtitle { color: var(--text-secondary); margin: .65rem 0 0; font-size: .95rem; }
+.main-nav { display: flex; gap: .35rem; position: absolute; right: 0; top: .75rem; padding: .3rem; border: 1px solid #e0dfed; border-radius: 12px; background: #ecebf3; }
+.main-nav a { padding: .6rem 1.2rem; border-radius: 8px; color: var(--text-secondary); text-decoration: none; font-weight: 600; }
+.main-nav a.selected { background: white; color: var(--primary); box-shadow: 0 2px 6px #2526380a; }
+.dashboard { display: flex; flex-direction: column; gap: 1.5rem; }
+.section-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem; margin-bottom: 1rem; }
+.section-heading span { font-size: .85rem; color: var(--text-secondary); }
+.section-title { font-size: 1.3rem; letter-spacing: -.02em; }
+.channel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.charts-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 1.5rem; margin-bottom: 1.5rem; }
+.chart-card { padding: 1.5rem; }
+.chart-title { font-size: 1.15rem; margin-bottom: 1.25rem; letter-spacing: -.015em; }
+.tabs { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.tab { padding: .65rem 1rem; min-height: 44px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; }
+.tab:hover { background: #eeecf7; }
+.tab.active { color: var(--primary); background: #eeecf7; border-color: #d9d4ef; }
+.loading { padding: 4rem; text-align: center; color: var(--text-secondary); }
+@media (max-width: 980px) { .channel-grid { grid-template-columns: 1fr; } }
+@media (max-width: 850px) { .main-nav { position: static; width: fit-content; margin-top: 1.25rem; } .charts-grid { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .header { margin-bottom: 1.5rem; } .stats-grid { gap: .5rem; } .chart-card { padding: 1.1rem; } .tab { padding: .6rem .7rem; } }
 
-@keyframes fadeInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.title {
-  font-size: 3rem;
-  font-weight: 700;
-  color: white;
-  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  margin-bottom: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-}
-
-.icon {
-  font-size: 3rem;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
-
-.subtitle {
-  font-size: 1.25rem;
-  color: rgba(255, 255, 255, 0.9);
-  font-weight: 300;
-}
-
-.loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1.5rem;
-  padding: 4rem;
-  color: white;
-  font-size: 1.25rem;
-}
-
-.spinner {
-  width: 50px;
-  height: 50px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-}
-
-.section-title {
-  font-size: 1.75rem;
-  font-weight: 600;
-  color: white;
-  margin-bottom: 1.5rem;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-}
-
-.channel-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 1.5rem;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-}
-
-.charts-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.timeline-chart {
-  width: 100%;
-  padding: 2rem;
-}
-
-.chart-card {
-  padding: 2rem;
-}
-
-.chart-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 1.5rem;
-}
-
-.tabs {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.tab {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  border-radius: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
-}
-
-.tab:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
-}
-
-.tab.active {
-  background: white;
-  color: var(--primary);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
-
-@media (max-width: 768px) {
-  .title {
-    font-size: 2rem;
-  }
-  
-  .channel-grid,
-  .charts-grid {
-    grid-template-columns: 1fr;
-  }
-}
+.load-error { padding: 2rem; text-align: center; }
+.load-error p { color: var(--text-secondary); margin: .75rem 0 1.25rem; }
+.load-error button { padding: .65rem 1.2rem; min-height: 44px; background: var(--primary); border: 0; border-radius: 8px; color: white; cursor: pointer; }
 </style>

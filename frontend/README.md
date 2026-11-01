@@ -7,7 +7,7 @@ setup, and deployment instructions.
 ## Views
 
 - **Dashboard** (`/#/`): live channel cards, statistics, channel distribution,
-  most-played tracks, songs by decade, and All Songs / Recent / channel lists.
+  a selectable most-played ranking, songs by decade, and All Songs / Recent / channel lists.
 - **Records — All Tracks** (`/#/records`): searchable, sortable track records
   with artwork, metadata, first/last observed times, and play counts.
 - **Records — Playback History** (`/#/records?tab=plays`): individual observed
@@ -63,6 +63,7 @@ refreshing does not guarantee new data immediately. See the
 ```text
 frontend/src/
 ├── components/
+│   ├── AlbumArtwork.vue       # Shared cover image and failure fallback
 │   ├── CurrentSong.vue        # Live channel card
 │   ├── StatsCard.vue          # Dashboard statistic
 │   ├── ChannelChart.vue       # Channel distribution
@@ -81,7 +82,7 @@ frontend/src/
 └── style.css                 # Shared styles and CSS variables
 ```
 
-The UI uses Chart.js through vue-chartjs, Axios for HTTP, and Inter typography.
+The UI uses Chart.js through vue-chartjs, Axios for HTTP, and native system typography. No external font request is required.
 
 ## API integration
 
@@ -90,7 +91,7 @@ The UI uses Chart.js through vue-chartjs, Axios for HTTP, and Inter typography.
 | `/api/songs` | Dashboard lists, statistics, and charts |
 | `/api/songs/current` | Latest observed song per channel |
 | `/api/songs/recent` | Recent list |
-| `/api/songs/most-played` | Most-played chart |
+| `/api/songs/most-played` | Most-played ranking |
 | `/api/songs/channel/{id}` | Channel-filtered songs |
 | `/api/songs/{id}` | Song details and persisted lyrics metadata |
 | `/api/records/tracks` | Paginated track records |
@@ -105,11 +106,26 @@ Channel names and colors are defined in `src/services/api.js`:
 
 ```javascript
 export const CHANNELS = {
-  '0': { name: 'Main Mix', color: '#667eea' },
-  '1': { name: 'Mellow Mix', color: '#4facfe' },
-  '2': { name: 'Rock Mix', color: '#f093fb' }
+  '0': { name: 'Main Mix', color: '#5145a6' },
+  '1': { name: 'Mellow Mix', color: '#176d82' },
+  '2': { name: 'Rock Mix', color: '#9a3971' }
 }
 ```
 
 Shared colors, card backgrounds, shadows, and border radius are CSS variables
 in `src/style.css`; component styles live alongside their templates.
+
+## Visual checks and screenshots
+
+Check desktop and 390px / 320px mobile layouts. Page content should not scroll
+sideways; Records keeps wide columns inside its labeled table scroller. Confirm
+keyboard selection in the most-played ranking and decade controls, modal focus
+and Escape, and Records filtering/pagination. Reduced-motion preferences disable
+chart and CSS animations.
+
+Artwork uses a shared placeholder when a URL is missing or fails. The placeholder
+resets when a new song supplies a different URL. Records and long song lists keep
+lazy loading: before taking a full-page screenshot, scroll through the view,
+allow covers to finish loading, then return to the top. Check that each image has
+loaded or has a visible fallback; a full-page capture alone does not load every
+image below the viewport. Use the current screenshot filenames in `docs/screenshots`.
