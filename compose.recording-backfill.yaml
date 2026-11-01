@@ -1,0 +1,5 @@
+services:
+  app:
+    # Maintenance mode has no HTTP listener; the web health check does not apply.
+    healthcheck:
+      disable: true

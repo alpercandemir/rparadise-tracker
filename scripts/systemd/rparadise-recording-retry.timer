@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Radio Paradise recording identifier retry at 04:00 Istanbul
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 Europe/Istanbul
+Persistent=true
+Unit=rparadise-recording-retry.service
+
+[Install]
+WantedBy=timers.target

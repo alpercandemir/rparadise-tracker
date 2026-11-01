@@ -1,0 +1,12 @@
+[Unit]
+Description=Retry failed Radio Paradise recording identifier lookups
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/rparadise-tracker
+ExecStart=/bin/bash /home/ubuntu/rparadise-tracker/scripts/run-recording-backfill.sh /home/ubuntu/rparadise-maintenance/recording-backfill.jar errors
+TimeoutStartSec=6h
+TimeoutStopSec=45s

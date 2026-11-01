@@ -21,3 +21,8 @@ fi
 port=$(docker port "$container" 5432/tcp | cut -d: -f2)
 RECORDS_DB_TESTS=true DB_URL="jdbc:postgresql://127.0.0.1:$port/records_test" \
   DB_USERNAME=records_test DB_PASSWORD=records_test TZ=UTC ./mvnw -B -ntp verify
+
+# Exercise maintenance-mode startup/shutdown without making external catalog calls.
+DB_URL="jdbc:postgresql://127.0.0.1:$port/records_test" DB_USERNAME=records_test \
+  DB_PASSWORD=records_test TZ=UTC java -jar target/radio-paradise-tracker-1.0.0.jar \
+  --spring.profiles.active=recording-backfill --recording.backfill.after-id=9223372036854775807

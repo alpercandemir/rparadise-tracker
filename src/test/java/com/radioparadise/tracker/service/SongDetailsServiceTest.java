@@ -16,7 +16,8 @@ import static org.mockito.ArgumentMatchers.*;
 class SongDetailsServiceTest {
     SongRepository songs = mock(SongRepository.class);
     LyricsClient lyrics = mock(LyricsClient.class);
-    SongDetailsService service = new SongDetailsService(songs, lyrics);
+    RecordingLinksService recordingLinks = mock(RecordingLinksService.class);
+    SongDetailsService service = new SongDetailsService(songs, lyrics, recordingLinks);
     Song song;
 
     @BeforeEach void setup() {
