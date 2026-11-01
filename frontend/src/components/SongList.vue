@@ -13,6 +13,10 @@
           v-for="song in songs"
           :key="song.id"
           class="song-item"
+          role="button" tabindex="0" :aria-label="`View details for ${song.title} by ${song.artist}`"
+          @click="$emit('select-song', song)"
+          @keydown.enter.prevent="$emit('select-song', song)"
+          @keydown.space.prevent="$emit('select-song', song)"
         >
           <img
             v-if="song.coverUrl"
@@ -50,6 +54,7 @@
 </template>
 
 <script setup>
+defineEmits(['select-song'])
 import { CHANNELS } from '../services/api.js'
 
 defineProps({
@@ -86,6 +91,8 @@ const getChannelStyle = (channelId) => {
 </script>
 
 <style scoped>
+.song-item { cursor: pointer; }
+.song-item:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
 .song-list {
   padding: 2rem;
 }

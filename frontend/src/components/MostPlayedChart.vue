@@ -30,7 +30,11 @@ const chartData = computed(() => {
   }
 })
 
+const emit = defineEmits(['select-song'])
 const chartOptions = {
+  onClick: (_event, elements) => {
+    if (elements.length) emit('select-song', props.songs.slice(0, 10)[elements[0].index])
+  },
   responsive: true,
   maintainAspectRatio: true,
   indexAxis: 'y',

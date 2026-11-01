@@ -12,7 +12,10 @@
           <button @click="selectedDecade = null" class="close-btn">✕</button>
         </div>
         <div class="panel-content">
-          <div v-for="song in filteredSongs" :key="song.id" class="song-item">
+          <div v-for="song in filteredSongs" :key="song.id" class="song-item" role="button" tabindex="0"
+            :aria-label="`View details for ${song.title} by ${song.artist}`"
+            @click="$emit('select-song', song)" @keydown.enter.prevent="$emit('select-song', song)"
+            @keydown.space.prevent="$emit('select-song', song)">
             <img 
               v-if="song.coverUrl" 
               :src="song.coverUrl" 
@@ -35,6 +38,7 @@
 </template>
 
 <script setup>
+defineEmits(['select-song'])
 import { ref, computed } from 'vue'
 import { Doughnut } from 'vue-chartjs'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
@@ -191,6 +195,8 @@ const handleChartClick = () => {
 </script>
 
 <style scoped>
+.song-item { cursor: pointer; }
+.song-item:focus-visible { outline: 3px solid var(--primary); }
 .decade-chart-wrapper {
   position: relative;
   display: flex;

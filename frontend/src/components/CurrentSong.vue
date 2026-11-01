@@ -1,5 +1,10 @@
 <template>
-  <div class="current-song-card card" :style="{ borderLeft: `4px solid ${channelColor}` }">
+  <div class="current-song-card card" :style="{ borderLeft: `4px solid ${channelColor}` }"
+    :role="song ? 'button' : undefined" :tabindex="song ? 0 : undefined"
+    :aria-label="song ? `View details for ${song.title} by ${song.artist}` : undefined"
+    @click="song && $emit('select-song', song)"
+    @keydown.enter.prevent="song && $emit('select-song', song)"
+    @keydown.space.prevent="song && $emit('select-song', song)">
     <div class="channel-header">
       <span class="channel-badge" :style="{ background: channelColor }">
         {{ channelName }}
@@ -48,6 +53,7 @@
 </template>
 
 <script setup>
+defineEmits(['select-song'])
 defineProps({
   channelId: String,
   channelName: String,
@@ -72,6 +78,8 @@ const formatTime = (timestamp) => {
 </script>
 
 <style scoped>
+.current-song-card[role="button"] { cursor: pointer; }
+.current-song-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
 .current-song-card {
   animation: slideUp 0.5s ease;
 }

@@ -75,11 +75,14 @@
           <tbody>
             <tr v-for="row in page.items" :key="row.id">
               <td class="cover-cell">
-                <img v-if="row.coverUrl" :src="row.coverUrl" :alt="`${row.album} cover`" loading="lazy" @error="$event.target.style.visibility = 'hidden'" />
-                <span v-else class="cover-placeholder" aria-label="No cover">♪</span>
+                <button class="song-link" :aria-label="`View details for ${row.title}`" @click="$emit('select-song', row)">
+                  <img v-if="row.coverUrl" :src="row.coverUrl" :alt="`${row.album} cover`" loading="lazy" @error="$event.target.style.visibility = 'hidden'" />
+                  <span v-else class="cover-placeholder" aria-label="No cover">♪</span>
+                </button>
               </td>
               <td v-for="column in columns" :key="column.key" :class="{ 'date-cell': column.kind === 'date', 'title-cell': column.key === 'title' }">
-                <span v-if="column.key === 'channel'" class="channel-label" :style="{ color: CHANNELS[row.channel]?.color }">{{ CHANNELS[row.channel]?.name || row.channel }}</span>
+                <button v-if="column.key === 'title'" class="song-link" @click="$emit('select-song', row)">{{ row.title }}</button>
+                <span v-else-if="column.key === 'channel'" class="channel-label" :style="{ color: CHANNELS[row.channel]?.color }">{{ CHANNELS[row.channel]?.name || row.channel }}</span>
                 <time v-else-if="column.kind === 'date'" :datetime="row[column.key]" :title="row[column.key]">{{ localTime(row[column.key]) }}</time>
                 <template v-else>{{ row[column.key] ?? '—' }}</template>
               </td>
@@ -101,6 +104,7 @@
 </template>
 
 <script setup>
+defineEmits(['select-song'])
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { CHANNELS, radioParadiseAPI } from '../services/api.js'
 import { parseRecordsHash, recordsHash, updateRecordsState, formatRecordTime, getClientTimeZone, pageRange } from '../services/records.js'
@@ -182,6 +186,8 @@ onBeforeUnmount(() => { ++request; controller?.abort(); window.removeEventListen
 </script>
 
 <style scoped>
+.song-link { background: none; border: 0; color: var(--primary); cursor: pointer; font: inherit; font-weight: 600; text-align: left; }
+.song-link:hover { text-decoration: underline; }
 .records { padding: 2rem; }
 .records:hover { transform: none; }
 .records-heading, .table-toolbar, .pagination, .page-controls { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }

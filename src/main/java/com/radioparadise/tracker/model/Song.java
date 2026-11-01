@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 @Entity
+@org.hibernate.annotations.DynamicUpdate
 @Table(name = "song", uniqueConstraints = @UniqueConstraint(columnNames = { "artist", "title", "album", "channel" }))
 @Data
 @NoArgsConstructor
@@ -38,6 +39,24 @@ public class Song {
 
     @Column(length = 500)
     private String coverUrl;
+
+    @Column(length = 500)
+    private String coverMediumUrl;
+
+    @Column(length = 500)
+    private String coverSmallUrl;
+
+    @Column(columnDefinition = "text")
+    private String lyrics;
+
+    private String lyricsStatus;
+
+    @Column(length = 500)
+    private String lyricsSource;
+
+    private Double durationSeconds;
+
+    private Instant metadataCheckedAt;
 
     @Column(name = "first_played", nullable = false)
     private Instant firstPlayed;

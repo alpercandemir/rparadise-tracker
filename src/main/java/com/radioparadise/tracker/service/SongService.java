@@ -39,6 +39,7 @@ public class SongService {
             if (Objects.equals(current.getArtist(), response.getArtist())
                     && Objects.equals(current.getTitle(), response.getTitle())
                     && Objects.equals(current.getAlbum(), response.getAlbum())) {
+                refreshArtwork(current, response);
                 return current;
             }
         }
@@ -49,11 +50,20 @@ public class SongService {
                 response.getTitle(),
                 response.getAlbum(),
                 channel)
-                .map(existingSong -> updateExistingSong(existingSong, observedAt))
+                .map(existingSong -> {
+                    refreshArtwork(existingSong, response);
+                    return updateExistingSong(existingSong, observedAt);
+                })
                 .orElseGet(() -> createNewSong(response, channel, observedAt));
         playbackEventRepository.save(PlaybackEvent.builder()
                 .song(song).channel(channel).observedAt(observedAt).build());
         return song;
+    }
+
+    public List<Song> getCurrentSongs() {
+        return java.util.stream.Stream.of("0", "1", "2")
+                .map(songRepository::findFirstByChannelOrderByLastPlayedDescIdDesc)
+                .flatMap(java.util.Optional::stream).toList();
     }
 
     public List<Song> getAllSongs() {
@@ -93,11 +103,19 @@ public class SongService {
                 .album(response.getAlbum())
                 .year(response.getYear())
                 .coverUrl(response.getCover())
+                .coverMediumUrl(response.getCoverMed())
+                .coverSmallUrl(response.getCoverSmall())
                 .firstPlayed(observedAt)
                 .lastPlayed(observedAt)
                 .playCount(1)
                 .build();
 
         return songRepository.save(newSong);
+    }
+
+    private void refreshArtwork(Song song, RadioParadiseResponse response) {
+        if (StringUtils.hasText(response.getCover())) song.setCoverUrl(response.getCover());
+        if (StringUtils.hasText(response.getCoverMed())) song.setCoverMediumUrl(response.getCoverMed());
+        if (StringUtils.hasText(response.getCoverSmall())) song.setCoverSmallUrl(response.getCoverSmall());
     }
 }

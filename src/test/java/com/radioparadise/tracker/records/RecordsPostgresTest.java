@@ -40,16 +40,64 @@ class RecordsPostgresTest {
     @Autowired TransactionTemplate transactions;
     @Autowired Environment environment;
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
+    @Autowired com.radioparadise.tracker.controller.RecordsController recordsController;
+    @Autowired com.radioparadise.tracker.controller.SongController songController;
     @MockitoBean SongTrackerScheduler scheduler;
+    @MockitoBean com.radioparadise.tracker.client.LyricsClient lyricsClient;
     RestClient http = RestClient.create();
 
     @BeforeEach
     void clearTestDatabase() {
+        recordsController.clearCaches();
+        songController.clearCache();
         assertThat(environment.getRequiredProperty("spring.datasource.url"))
                 .as("Integration tests must only use the disposable records_test database")
                 .endsWith("/records_test");
         plays.deleteAll();
         songs.deleteAll();
+    }
+
+    @Test
+    void detailsArePersistedAndApiCachesUseSnapshots() {
+        Song song = songs.save(song("Details", "1"));
+        org.mockito.Mockito.when(lyricsClient.find("Artist", "Details", "Album"))
+                .thenReturn(new com.radioparadise.tracker.client.LyricsClient.Result("found", "Sample lyrics", "https://lrclib.net/api/get/12", 120.0));
+        Map<?, ?> details = get("/api/songs/" + song.getId());
+        assertThat(details.get("lyrics")).isEqualTo("Sample lyrics");
+        assertThat(songs.findById(song.getId()).orElseThrow().getLyrics()).isEqualTo("Sample lyrics");
+        get("/api/songs/" + song.getId());
+        org.mockito.Mockito.verify(lyricsClient, org.mockito.Mockito.times(1)).find("Artist", "Details", "Album");
+        assertThat(items(get("/api/records/tracks"))).hasSize(1);
+        song.setTitle("Changed later");
+        songs.save(song);
+        assertThat(items(get("/api/records/tracks")).getFirst().get("title")).isEqualTo("Details");
+        recordsController.clearCaches();
+        assertThat(items(get("/api/records/tracks")).getFirst().get("title")).isEqualTo("Changed later");
+    }
+
+    @Test
+    void collectingAPlayDoesNotOverwriteConcurrentLyricsEnrichment() {
+        Song song = songs.save(song("Concurrent enrichment", "1"));
+        transactions.executeWithoutResult(tx -> {
+            Song managed = songs.findById(song.getId()).orElseThrow();
+            var independent = new TransactionTemplate(transactions.getTransactionManager());
+            independent.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            independent.executeWithoutResult(other -> songs.updateDetails(song.getId(), "Saved lyrics", "found", "source", 100.0, Instant.now()));
+            managed.setPlayCount(2);
+            managed.setLastPlayed(Instant.now());
+        });
+        Song result = songs.findById(song.getId()).orElseThrow();
+        assertThat(result.getLyrics()).isEqualTo("Saved lyrics");
+        assertThat(result.getPlayCount()).isEqualTo(2);
+    }
+
+    @Test
+    void currentEndpointReturnsLatestPerChannelAndSongDetailsUse404ForUnknownIds() {
+        songs.saveAll(List.of(song("Main", "0"), song("Mellow", "1"), song("Rock", "2")));
+        List<?> rows = http.get().uri("http://localhost:" + port + "/api/songs/current").retrieve().body(List.class);
+        assertThat(rows).hasSize(3);
+        assertThatThrownBy(() -> get("/api/songs/9223372036854775807"))
+                .isInstanceOfSatisfying(RestClientResponseException.class, error -> assertThat(error.getStatusCode().value()).isEqualTo(404));
     }
 
     @Test

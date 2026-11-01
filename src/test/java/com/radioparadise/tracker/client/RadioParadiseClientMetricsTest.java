@@ -48,6 +48,18 @@ class RadioParadiseClientMetricsTest {
     }
 
     @Test
+    void repeatedReadsOfSameChannelShareOneUpstreamCall() {
+        context().run(ctx -> {
+            var client = ctx.getBean(RadioParadiseClient.class);
+            client.getCurrentSong("0");
+            client.getCurrentSong("0");
+            assertThat(meters.find("http.client.requests").timer().count()).isEqualTo(1);
+            client.getCurrentSong("1");
+            assertThat(meters.find("http.client.requests").timer().count()).isEqualTo(2);
+        });
+    }
+
+    @Test
     void recordsSuccessfulCallsWithoutExpandingChannelValuesIntoMetricUris() {
         context().run(ctx -> {
             var client = ctx.getBean(RadioParadiseClient.class);

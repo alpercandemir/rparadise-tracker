@@ -107,7 +107,7 @@ class SongServiceTest {
         assertThat(existingSong.getTitle()).isEqualTo("Title");
         assertThat(existingSong.getAlbum()).isEqualTo("Album");
         assertThat(existingSong.getYear()).isEqualTo("1999");
-        assertThat(existingSong.getCoverUrl()).isEqualTo("https://example.com/original.jpg");
+        assertThat(existingSong.getCoverUrl()).isEqualTo("https://example.com/cover.jpg");
         assertThat(result).isSameAs(persistedSong);
     }
 

@@ -9,6 +9,9 @@ A Java 25 + Spring Boot application that continuously tracks currently playing s
 - Tracks per-song play counts and last played timestamps
 - Exposes browsing endpoints for all, recent, most-played, and channel-filtered songs
 - Includes a Vue.js dashboard frontend with charts and channel-based views
+- Opens song details from live cards, lists, charts, tracks, and playback history, with large artwork,
+  listening statistics, and lyrics from [LRCLIB](https://lrclib.net/docs) when available
+- Uses bounded JVM caches for RP reads and internal list/page responses (30-second TTL)
 
 ## Architecture
 
@@ -116,6 +119,8 @@ Known tracking limitation: the collector remembers the last song per channel in 
 ## API Endpoints
 
 - `GET /api/songs` - List all tracked songs
+- `GET /api/songs/current` - Latest observed song per channel, from our database
+- `GET /api/songs/{id}` - Song details and on-demand, persisted lyrics metadata
 - `GET /api/songs/recent` - List latest 20 songs by `lastPlayed`
 - `GET /api/songs/most-played` - List top 20 songs by `playCount`
 - `GET /api/songs/channel/{channelId}` - Filter songs by channel (`0`, `1`, `2`)
@@ -123,8 +128,31 @@ Known tracking limitation: the collector remembers the last song per channel in 
 ### Channel IDs
 
 - `0` -> Main Mix
-- `1` -> Rock Mix
-- `2` -> Mellow Mix
+- `1` -> Mellow Mix
+- `2` -> Rock Mix
+
+### Song details and caching
+
+The collector is the only caller of RP. Its client caches each channel for 30 seconds,
+including empty/error results to avoid retry storms. Dashboard lists cache seven response
+variants; track and playback pages each cache at most 128 validated queries. Cached values
+are DTO snapshots, and concurrent cache misses share a load. Caches expire 30 seconds after
+loading and reset on application restart. HTTP responses use `Cache-Control: no-store` so
+browser/CDN caching does not add another TTL. Polling, server TTLs, and browser polling can
+add delay; these are interval settings, not a guarantee of exactly 30 seconds end to end.
+
+Only the three live cards refresh every 30 seconds. Browsing lists, charts, record filters,
+scroll position, focus, and the selected modal stay stable. Hidden browser tabs skip polling.
+Lists/charts reload on returning from Records; Records has an explicit Refresh button.
+
+Opening a song looks up its exact artist/title/album in LRCLIB, with a 2-second connection
+timeout and 4-second read timeout. Lyrics, source URL, duration, status, and check time are
+stored on the song. Successful/instrumental results refresh after 30 days, missing results
+after one day, and provider failures after five minutes. Previously saved lyrics survive
+temporary provider errors. Large/medium/small RP artwork URLs are retained when collected.
+Existing database rows work immediately; nullable enrichment columns are added by Hibernate
+and populated as songs are opened or observed again. Lyrics are excluded from list responses.
+Set `lyrics.api.base-url` to override the provider URL in a test environment.
 
 ## Configuration
 

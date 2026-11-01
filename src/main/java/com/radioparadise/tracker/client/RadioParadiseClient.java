@@ -1,6 +1,8 @@
 package com.radioparadise.tracker.client;
 
 import com.radioparadise.tracker.dto.RadioParadiseResponse;
+import com.radioparadise.tracker.service.ExpiringCache;
+import com.radioparadise.tracker.model.RadioParadiseChannel;
 import io.micrometer.observation.ObservationRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +19,8 @@ import java.util.Optional;
 public class RadioParadiseClient {
 
     private final RestClient restClient;
+    private final ExpiringCache<String, Optional<RadioParadiseResponse>> currentSongs =
+            new ExpiringCache<>(3, Duration.ofSeconds(30));
 
     public RadioParadiseClient(@Value("${radioparadise.api.base-url}") String baseUrl,
                                ObservationRegistry observationRegistry) {
@@ -33,6 +37,11 @@ public class RadioParadiseClient {
     }
 
     public Optional<RadioParadiseResponse> getCurrentSong(String channel) {
+        RadioParadiseChannel.fromId(channel);
+        return currentSongs.get(channel, () -> fetchCurrentSong(channel));
+    }
+
+    private Optional<RadioParadiseResponse> fetchCurrentSong(String channel) {
         try {
             log.debug("Fetching current song from Radio Paradise API (channel: {})", channel);
 

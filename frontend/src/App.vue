@@ -12,7 +12,7 @@
       </nav>
     </header>
 
-    <RecordsPage v-if="isRecords" />
+    <RecordsPage v-if="isRecords" @select-song="openSong" />
     <div v-else-if="loading" class="loading">
       <div class="spinner"></div>
       <p>Loading tracks...</p>
@@ -30,6 +30,7 @@
             :channelName="channel.name"
             :channelColor="channel.color"
             :song="currentSongs[id]"
+            @select-song="openSong"
           />
         </div>
       </section>
@@ -67,14 +68,14 @@
           </div>
           <div class="card chart-card">
             <h3 class="chart-title">Most Played</h3>
-            <MostPlayedChart :songs="mostPlayedSongs" />
+            <MostPlayedChart :songs="mostPlayedSongs" @select-song="openSong" />
           </div>
         </div>
         
         <!-- Timeline Chart (Full Width) -->
         <div class="card chart-card timeline-chart">
           <h3 class="chart-title">Songs by Decade</h3>
-          <TimelineChart :songs="allSongs" />
+          <TimelineChart :songs="allSongs" @select-song="openSong" />
         </div>
       </section>
 
@@ -96,10 +97,12 @@
             :key="activeTab"
             :songs="getTabSongs()"
             :title="getTabTitle()"
+            @select-song="openSong"
           />
         </Transition>
       </section>
     </div>
+    <SongDetailsModal v-if="selectedSong" :song="selectedSong" @close="selectedSong = null" />
   </div>
 </template>
 
@@ -113,11 +116,15 @@ import ChannelChart from './components/ChannelChart.vue'
 import MostPlayedChart from './components/MostPlayedChart.vue'
 import TimelineChart from './components/TimelineChart.vue'
 import SongList from './components/SongList.vue'
+import SongDetailsModal from './components/SongDetailsModal.vue'
 
 const loading = ref(true)
 const allSongs = ref([])
 const recentSongs = ref([])
 const mostPlayedSongs = ref([])
+const liveSongs = ref([])
+const selectedSong = ref(null)
+const openSong = song => { selectedSong.value = { ...song, id: song.songId ?? song.id } }
 const channels = CHANNELS
 const activeTab = ref('all')
 const isRecords = ref(window.location.hash.startsWith('#/records'))
@@ -149,7 +156,7 @@ const isChannelMatch = (songChannel, channelId) => {
 const currentSongs = computed(() => {
   const songs = {}
   Object.keys(channels).forEach(channelId => {
-    const channelSongs = allSongs.value.filter(s => isChannelMatch(s.channel, channelId))
+    const channelSongs = liveSongs.value.filter(s => isChannelMatch(s.channel, channelId))
     songs[channelId] = channelSongs.length > 0
       ? channelSongs.reduce((latest, song) =>
           new Date(song.lastPlayed) > new Date(latest.lastPlayed) ? song : latest
@@ -181,14 +188,16 @@ const loadData = async () => {
     if (allSongs.value.length === 0) {
       loading.value = true
     }
-    const [songs, recent, mostPlayed] = await Promise.all([
+    const [songs, recent, mostPlayed, current] = await Promise.all([
       radioParadiseAPI.getAllSongs(),
       radioParadiseAPI.getRecentSongs(),
-      radioParadiseAPI.getMostPlayedSongs()
+      radioParadiseAPI.getMostPlayedSongs(),
+      radioParadiseAPI.getCurrentSongs()
     ])
     allSongs.value = songs
     recentSongs.value = recent
     mostPlayedSongs.value = mostPlayed
+    liveSongs.value = current
   } catch (error) {
     console.error('Error loading data:', error)
   } finally {
@@ -199,8 +208,12 @@ const loadData = async () => {
 onMounted(() => {
   window.addEventListener('hashchange', syncView)
   if (!isRecords.value) loadData()
-  // Refresh data every 5 minutes
-  refreshTimer = setInterval(() => { if (!isRecords.value) loadData() }, 300000)
+  // Refresh only live cards; browsing lists/charts and the selected modal stay stable.
+  refreshTimer = setInterval(async () => {
+    if (isRecords.value || document.hidden) return
+    try { liveSongs.value = await radioParadiseAPI.getCurrentSongs() }
+    catch (error) { console.error('Could not refresh live songs:', error) }
+  }, 30000)
 })
 
 onBeforeUnmount(() => {
