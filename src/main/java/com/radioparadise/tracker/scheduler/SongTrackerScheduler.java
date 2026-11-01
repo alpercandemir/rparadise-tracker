@@ -4,6 +4,7 @@ import com.radioparadise.tracker.client.RadioParadiseClient;
 import com.radioparadise.tracker.dto.RadioParadiseResponse;
 import com.radioparadise.tracker.model.RadioParadiseChannel;
 import com.radioparadise.tracker.service.SongService;
+import com.radioparadise.tracker.service.InvalidSongMetadataException;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -28,7 +29,7 @@ public class SongTrackerScheduler {
     private final SongService songService;
     private final MeterRegistry meterRegistry;
     private final List<RadioParadiseChannel> channels;
-    private final Map<String, String> lastSongKeyByChannel = new HashMap<>();
+    private final Map<String, SongKey> lastSongKeyByChannel = new HashMap<>();
     private final Map<String, AtomicLong> lastSuccessfulPollByChannel = new HashMap<>();
 
     public SongTrackerScheduler(RadioParadiseClient radioParadiseClient, SongService songService,
@@ -79,6 +80,8 @@ public class SongTrackerScheduler {
                 // Unchanged songs are healthy polls too. Persistence failures never advance freshness.
                 lastSuccessfulPollByChannel.get(channelId).set(meterRegistry.config().clock().wallTime());
                 outcome = "success";
+            } catch (InvalidSongMetadataException e) {
+                log.warn("Skipping invalid song metadata on channel {}: {}", channelId, e.getMessage());
             } catch (Exception e) {
                 log.error("Error tracking song on channel {}", channelId, e);
             } finally {
@@ -91,8 +94,8 @@ public class SongTrackerScheduler {
     }
 
     private void saveSongIfChanged(String channelId, RadioParadiseResponse song) {
-        String currentSongKey = generateSongKey(song);
-        String lastSongKey = lastSongKeyByChannel.get(channelId);
+        SongKey currentSongKey = generateSongKey(song);
+        SongKey lastSongKey = lastSongKeyByChannel.get(channelId);
 
         if (currentSongKey.equals(lastSongKey)) {
             log.debug("Same song is still playing on channel {}, skipping save", channelId);
@@ -100,10 +103,15 @@ public class SongTrackerScheduler {
         }
 
         songService.saveOrUpdateSong(song, channelId);
+        // The transactional service proxy has committed before reporting success.
+        log.info("Tracked song on channel {}: {} - {} ({})",
+                channelId, song.getArtist(), song.getTitle(), song.getAlbum());
         lastSongKeyByChannel.put(channelId, currentSongKey);
     }
 
-    private String generateSongKey(RadioParadiseResponse song) {
-        return song.getArtist() + "|" + song.getTitle() + "|" + song.getAlbum();
+    private SongKey generateSongKey(RadioParadiseResponse song) {
+        return new SongKey(song.getArtist(), song.getTitle(), song.getAlbum());
     }
+
+    private record SongKey(String artist, String title, String album) {}
 }

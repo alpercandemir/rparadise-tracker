@@ -6,6 +6,9 @@ import com.radioparadise.tracker.repository.SongRepository;
 import com.radioparadise.tracker.repository.PlaybackEventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -16,9 +19,11 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -113,6 +118,33 @@ class SongServiceTest {
                 .withMessage("response cannot be null");
 
         verifyNoInteractions(songRepository);
+    }
+
+    @ParameterizedTest
+    @MethodSource("incompleteMetadata")
+    void rejectsIncompleteMetadataBeforeAccessingEitherRepository(String artist, String title, String album) {
+        RadioParadiseResponse response = response();
+        response.setArtist(artist);
+        response.setTitle(title);
+        response.setAlbum(album);
+
+        assertThatThrownBy(() -> songService.saveOrUpdateSong(response, "2"))
+                .isInstanceOf(InvalidSongMetadataException.class);
+
+        verifyNoInteractions(songRepository, playbackEventRepository);
+    }
+
+    private static Stream<Arguments> incompleteMetadata() {
+        return Stream.of(
+                Arguments.of(null, "Title", "Album"),
+                Arguments.of("", "Title", "Album"),
+                Arguments.of(" \t\n", "Title", "Album"),
+                Arguments.of("Artist", null, "Album"),
+                Arguments.of("Artist", "", "Album"),
+                Arguments.of("Artist", " \t\n", "Album"),
+                Arguments.of("Artist", "Title", null),
+                Arguments.of("Artist", "Title", ""),
+                Arguments.of("Artist", "Title", " \t\n"));
     }
 
     @Test

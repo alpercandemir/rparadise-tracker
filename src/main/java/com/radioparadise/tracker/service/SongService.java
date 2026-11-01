@@ -6,10 +6,10 @@ import com.radioparadise.tracker.model.PlaybackEvent;
 import com.radioparadise.tracker.repository.SongRepository;
 import com.radioparadise.tracker.repository.PlaybackEventRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -18,7 +18,6 @@ import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class SongService {
 
     private static final int DEFAULT_SONG_RESULT_LIMIT = 20;
@@ -29,6 +28,9 @@ public class SongService {
     @Transactional
     public Song saveOrUpdateSong(RadioParadiseResponse response, String channel) {
         Objects.requireNonNull(response, "response cannot be null");
+        requireMetadata("artist", response.getArtist());
+        requireMetadata("title", response.getTitle());
+        requireMetadata("album", response.getAlbum());
 
         // Durable checkpoint: a restart must not count the same ongoing play twice.
         var latest = playbackEventRepository.findFirstByChannelOrderByObservedAtDescIdDesc(channel);
@@ -47,7 +49,7 @@ public class SongService {
                 response.getTitle(),
                 response.getAlbum(),
                 channel)
-                .map(existingSong -> updateExistingSong(existingSong, channel, observedAt))
+                .map(existingSong -> updateExistingSong(existingSong, observedAt))
                 .orElseGet(() -> createNewSong(response, channel, observedAt));
         playbackEventRepository.save(PlaybackEvent.builder()
                 .song(song).channel(channel).observedAt(observedAt).build());
@@ -70,12 +72,15 @@ public class SongService {
         return songRepository.findByChannel(channel);
     }
 
-    private Song updateExistingSong(Song song, String channel, Instant observedAt) {
+    private static void requireMetadata(String field, String value) {
+        if (!StringUtils.hasText(value)) {
+            throw new InvalidSongMetadataException(field);
+        }
+    }
+
+    private Song updateExistingSong(Song song, Instant observedAt) {
         song.setLastPlayed(observedAt);
         song.setPlayCount(song.getPlayCount() + 1);
-
-        log.info("Updated existing song on channel {}: {} - {} (play count: {})",
-                channel, song.getArtist(), song.getTitle(), song.getPlayCount());
 
         return songRepository.save(song);
     }
@@ -92,9 +97,6 @@ public class SongService {
                 .lastPlayed(observedAt)
                 .playCount(1)
                 .build();
-
-        log.info("Saved new song on channel {}: {} - {} ({})",
-                channel, newSong.getArtist(), newSong.getTitle(), newSong.getAlbum());
 
         return songRepository.save(newSong);
     }
