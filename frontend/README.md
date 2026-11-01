@@ -15,7 +15,7 @@ setup, and deployment instructions.
   broadcasts are not reconstructed.
 - **Song details**: select a song from a card, list, chart track, or Records
   title/artwork to open large artwork, channel-specific listening statistics,
-  duration, and lyrics from Radio Paradise when available.
+  duration, and lyrics from Radio Paradise with LRCLIB as a fallback and source attribution.
 
 Records supports search by track, artist, or album, channel filtering, column
 sorting, and 25/50/100 rows per page. Filters, sorting, and pagination are stored

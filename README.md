@@ -23,7 +23,7 @@ A Java 25 + Spring Boot application with a Vue 3 dashboard that continuously tra
 - Provides a Records page with searchable, sortable, paginated tracks and playback history, plus channel and history date filters
 - Displays timestamps and interprets history date filters in the browser's timezone
 - Opens song details from live cards, lists, charts, tracks, and playback history, with large artwork,
-  listening statistics, and lyrics directly from Radio Paradise when available
+  listening statistics, and Radio Paradise lyrics with LRCLIB as a fallback
 - Uses bounded JVM caches for RP reads and internal list/page responses (30-second TTL)
 - Uses system typography, accessible channel colors, keyboard-accessible track rankings and decade controls, and artwork placeholders for unavailable covers
 - Offers an optional Grafana, Prometheus, and Loki stack for metrics and logs
@@ -46,7 +46,7 @@ A Java 25 + Spring Boot application with a Vue 3 dashboard that continuously tra
 - **Dashboard** (`/#/`): see the latest observed song for each channel, browse song lists, and explore charts.
 - **Records → All Tracks** (`/#/records`): search by track, artist, or album; filter by channel; sort columns; and choose 25, 50, or 100 rows per page.
 - **Records → Playback History** (`/#/records?tab=plays`): browse individual observed plays and filter by calendar dates in your timezone. Filters, sorting, and pagination are preserved in the URL.
-- **Song details**: select a song card, list entry, chart track, or Records title/artwork to see larger artwork, channel-specific listening statistics, duration, and available Radio Paradise lyrics.
+- **Song details**: select a song card, list entry, chart track, or Records title/artwork to see larger artwork, channel-specific listening statistics, duration, and available lyrics from Radio Paradise or LRCLIB.
 
 History records when the tracker first observed a play, within its polling interval. Earlier broadcasts are not reconstructed, and downtime can leave gaps. See the [Records API guide](docs/records-api.md) for query parameters and storage details.
 
@@ -184,18 +184,32 @@ Opening a song fetches RP’s own `/siteapi.php?file=music::song&song_id=...` en
 with a 2-second connection timeout and 4-second read timeout. RP song IDs and duration
 are collected from the live feed. Existing rows resolve their ID by exact artist/title/album
 matching against the same cached recent history (up to 100 songs per channel); rows outside that history gain an ID
-when they play again. No account credentials or external lyrics provider are used.
+when they play again. No account credentials are required.
+
+If RP has no lyrics or its song ID cannot be resolved, [LRCLIB](https://lrclib.net/docs)
+is queried on demand as a fallback. RP lyrics and instrumental results take priority.
+If RP temporarily fails, saved lyrics are retained; LRCLIB is tried when there is no
+saved result. LRCLIB search candidates must match artist, title, and album exactly
+(after Unicode, case, and whitespace normalization), and duration within two seconds
+when known. Missing album metadata, ambiguous matches, potentially truncated result
+sets, and records without plain lyrics or an instrumental marker are left unresolved.
+LRCLIB results supply plain lyrics and source attribution, without changing RP IDs or
+duration. Requests identify this application, run sequentially with at least 250 ms
+between them, and honor rate-limit `Retry-After` headers. LRCLIB uses the same
+2-second connection and 4-second read timeouts as RP.
 
 RP’s lyrics HTML is converted to plain text before storage and display. Lyrics, RP song ID,
-source URL, duration, status, and check time persist in PostgreSQL. Successful/instrumental
-results refresh after 30 days, missing results after one day, and provider failures after
-five minutes. A bounded 256-entry, 30-second client cache also coalesces detail lookups.
-Previously saved RP lyrics survive temporary RP errors. Results from the earlier provider
-are replaced on the next opening, regardless of their old TTL.
+source URL, duration, status, and check time persist in PostgreSQL. RP successful/instrumental
+results refresh after 30 days; LRCLIB results refresh after one day so RP can take over.
+Missing results refresh after one day, and provider failures without a saved result after
+five minutes. Each lyrics client has a bounded 256-entry, 30-second cache that coalesces
+lookups. Saved lyrics and instrumental results survive refreshes that provide no replacement.
+The song details modal links to the provider that supplied the displayed result.
 
 Large/medium/small RP artwork URLs are retained when collected. Existing rows remain
 valid; Hibernate adds the nullable RP ID column. Lyrics stay out of list responses.
 `radioparadise.api.base-url` configures both RP clients for local tests.
+`lrclib.api.base-url` (or `LRCLIB_API_BASE_URL`) configures the fallback endpoint.
 
 Song details also resolve recording identifiers and streaming links through the
 [MusicBrainz API](https://musicbrainz.org/doc/MusicBrainz_API), without Spotify/Google credentials.

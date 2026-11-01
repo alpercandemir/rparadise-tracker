@@ -32,7 +32,7 @@
         </div>
         <section class="lyrics-section" aria-labelledby="lyrics-title" :aria-busy="loading">
           <div class="lyrics-heading"><h3 id="lyrics-title">Lyrics</h3>
-            <a v-if="details?.lyricsSource && details?.lyrics" :href="details.lyricsSource" target="_blank" rel="noopener noreferrer">Source: Radio Paradise ↗</a>
+            <a v-if="lyricSource && (details?.lyrics || details?.lyricsStatus === 'instrumental')" :href="lyricSource.url" target="_blank" rel="noopener noreferrer">Source: {{ lyricSource.label }} ↗</a>
           </div>
           <p v-if="loading" class="status" role="status">Finding song details…</p>
           <div v-else-if="error" class="status" role="alert">
@@ -54,6 +54,7 @@ import AlbumArtwork from './AlbumArtwork.vue'
 import { CHANNELS, radioParadiseAPI } from '../services/api.js'
 import { formatRecordTime } from '../services/records.js'
 import { listeningLinks, musicBrainzSource } from '../services/listeningLinks.js'
+import { lyricsSource } from '../services/lyrics.js'
 
 const props = defineProps({ song: { type: Object, required: true } })
 const emit = defineEmits(['close'])
@@ -62,6 +63,7 @@ const details = ref(null)
 const track = computed(() => details.value?.song || props.song)
 const links = computed(() => listeningLinks(track.value, details.value?.recordingLinks))
 const recordingSource = computed(() => musicBrainzSource(details.value?.recordingLinks?.source))
+const lyricSource = computed(() => lyricsSource(details.value?.lyricsSource))
 const loading = ref(true)
 const error = ref('')
 let controller
