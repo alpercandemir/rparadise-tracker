@@ -1,0 +1,69 @@
+package com.radioparadise.tracker.service;
+
+import com.radioparadise.tracker.model.RadioParadiseChannel;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.Map;
+import java.util.Set;
+
+public record RecordsQuery(int page, int size, String sort, Sort.Direction direction,
+                           String search, String channel, LocalDate from, LocalDate to) {
+    private static final Set<String> TRACK_SORTS = Set.of("id", "title", "artist", "album", "year",
+            "channel", "firstPlayed", "lastPlayed", "playCount");
+    private static final Set<String> PLAY_SORTS = Set.of("id", "title", "artist", "album", "year", "channel", "playedAt");
+
+    public static RecordsQuery parse(Map<String, String> parameters, boolean history) {
+        int page = integer(parameters, "page", 0);
+        int size = integer(parameters, "size", 25);
+        if (page < 0 || page > 1_000_000) throw new IllegalArgumentException("page must be between 0 and 1000000");
+        if (!Set.of(25, 50, 100).contains(size)) throw new IllegalArgumentException("size must be 25, 50, or 100");
+        String sort = parameters.getOrDefault("sort", history ? "playedAt" : "lastPlayed");
+        if (!(history ? PLAY_SORTS : TRACK_SORTS).contains(sort)) throw new IllegalArgumentException("Unsupported sort field: " + sort);
+        String direction = parameters.getOrDefault("direction", "desc");
+        if (!Set.of("asc", "desc").contains(direction)) throw new IllegalArgumentException("direction must be asc or desc");
+        String search = parameters.getOrDefault("q", "").trim();
+        if (search.length() > 200) throw new IllegalArgumentException("q must be at most 200 characters");
+        String channel = parameters.getOrDefault("channel", "");
+        if (!channel.isEmpty()) RadioParadiseChannel.fromId(channel);
+        LocalDate from = history ? date(parameters.get("from")) : null;
+        LocalDate to = history ? date(parameters.get("to")) : null;
+        if (from != null && to != null && from.isAfter(to)) throw new IllegalArgumentException("from must not be after to");
+        return new RecordsQuery(page, size, sort, Sort.Direction.fromString(direction), search, channel, from, to);
+    }
+
+    public PageRequest pageable(boolean history) {
+        String property = sort;
+        if (history) {
+            property = switch (sort) {
+                case "playedAt" -> "observedAt";
+                case "title", "artist", "album", "year" -> "song." + sort;
+                default -> sort;
+            };
+        }
+        Sort ordering = Sort.by(direction, property);
+        if (!property.equals("id")) ordering = ordering.and(Sort.by(direction, "id"));
+        return PageRequest.of(page, size, ordering);
+    }
+
+    private static int integer(Map<String, String> parameters, String key, int fallback) {
+        try {
+            return parameters.containsKey(key) ? Integer.parseInt(parameters.get(key)) : fallback;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(key + " must be an integer");
+        }
+    }
+
+    private static LocalDate date(String value) {
+        if (value == null || value.isEmpty()) return null;
+        try {
+            LocalDate date = LocalDate.parse(value);
+            if (date.getYear() < 1900 || date.getYear() > 9998) throw new IllegalArgumentException("Date year must be between 1900 and 9998");
+            return date;
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("Dates must be valid YYYY-MM-DD values");
+        }
+    }
+}

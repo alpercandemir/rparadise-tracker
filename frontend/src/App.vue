@@ -6,9 +6,14 @@
         Radio Paradise Tracker
       </h1>
       <p class="subtitle">Live music tracking across all channels</p>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="#/" :aria-current="!isRecords ? 'page' : undefined" :class="{ selected: !isRecords }">Dashboard</a>
+        <a href="#/records" :aria-current="isRecords ? 'page' : undefined" :class="{ selected: isRecords }">Records</a>
+      </nav>
     </header>
 
-    <div v-if="loading" class="loading">
+    <RecordsPage v-if="isRecords" />
+    <div v-else-if="loading" class="loading">
       <div class="spinner"></div>
       <p>Loading tracks...</p>
     </div>
@@ -99,7 +104,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import RecordsPage from './components/RecordsPage.vue'
 import { radioParadiseAPI, CHANNELS } from './services/api.js'
 import CurrentSong from './components/CurrentSong.vue'
 import StatsCard from './components/StatsCard.vue'
@@ -114,6 +120,14 @@ const recentSongs = ref([])
 const mostPlayedSongs = ref([])
 const channels = CHANNELS
 const activeTab = ref('all')
+const isRecords = ref(window.location.hash.startsWith('#/records'))
+let refreshTimer
+
+const syncView = () => {
+  const previous = isRecords.value
+  isRecords.value = window.location.hash.startsWith('#/records')
+  if (previous && !isRecords.value) loadData()
+}
 
 const tabs = [
   { id: 'all', label: 'All Songs' },
@@ -183,13 +197,22 @@ const loadData = async () => {
 }
 
 onMounted(() => {
-  loadData()
+  window.addEventListener('hashchange', syncView)
+  if (!isRecords.value) loadData()
   // Refresh data every 5 minutes
-  setInterval(loadData, 300000)
+  refreshTimer = setInterval(() => { if (!isRecords.value) loadData() }, 300000)
+})
+
+onBeforeUnmount(() => {
+  clearInterval(refreshTimer)
+  window.removeEventListener('hashchange', syncView)
 })
 </script>
 
 <style scoped>
+.main-nav { display: flex; justify-content: center; gap: .5rem; margin-top: 1.5rem; }
+.main-nav a { padding: .7rem 1.4rem; border-radius: 10px; color: white; text-decoration: none; background: rgba(255,255,255,.15); font-weight: 600; }
+.main-nav a.selected { background: white; color: var(--primary); }
 .header {
   text-align: center;
   margin-bottom: 3rem;

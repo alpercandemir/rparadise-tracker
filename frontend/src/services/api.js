@@ -3,6 +3,12 @@ import axios from 'axios'
 const API_BASE = '/api'
 
 export const radioParadiseAPI = {
+    async getRecordsPage(tab, params, signal) {
+        const endpoint = tab === 'plays' ? 'plays' : 'tracks'
+        const response = await axios.get(`${API_BASE}/records/${endpoint}`, { params, signal })
+        return response.data
+    },
+
     // Get all songs
     async getAllSongs() {
         const response = await axios.get(`${API_BASE}/songs`)
