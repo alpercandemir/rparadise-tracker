@@ -3,23 +3,22 @@ package com.radioparadise.tracker.scheduler;
 import com.radioparadise.tracker.client.RadioParadiseClient;
 import com.radioparadise.tracker.dto.RadioParadiseResponse;
 import com.radioparadise.tracker.model.RadioParadiseChannel;
-import com.radioparadise.tracker.service.SongService;
 import com.radioparadise.tracker.service.InvalidSongMetadataException;
+import com.radioparadise.tracker.service.SongService;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
-
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
 
 @Component
 @Slf4j
@@ -32,34 +31,23 @@ public class SongTrackerScheduler {
     private final Map<String, SongKey> lastSongKeyByChannel = new HashMap<>();
     private final Map<String, AtomicLong> lastSuccessfulPollByChannel = new HashMap<>();
 
-    public SongTrackerScheduler(RadioParadiseClient radioParadiseClient, SongService songService,
-                                MeterRegistry meterRegistry,
-                                @Value("${radioparadise.api.channels}") String configuredChannels) {
+    public SongTrackerScheduler(
+            RadioParadiseClient radioParadiseClient,
+            SongService songService,
+            MeterRegistry meterRegistry,
+            @Value("${radioparadise.api.channels}") String configuredChannels) {
         this.radioParadiseClient = radioParadiseClient;
         this.songService = songService;
         this.meterRegistry = meterRegistry;
-        this.channels = Arrays.stream(configuredChannels.split(","))
-                .map(String::trim)
-                .filter(channelId -> !channelId.isEmpty())
-                .map(RadioParadiseChannel::fromId)
-                .distinct()
-                .toList();
+        this.channels =
+                Arrays.stream(configuredChannels.split(","))
+                        .map(String::trim)
+                        .filter(channelId -> !channelId.isEmpty())
+                        .map(RadioParadiseChannel::fromId)
+                        .distinct()
+                        .toList();
         for (RadioParadiseChannel channel : channels) {
-            AtomicLong lastSuccess = new AtomicLong(0);
-            lastSuccessfulPollByChannel.put(channel.id(), lastSuccess);
-            Gauge.builder("radioparadise.collector.last.success.timestamp.seconds", lastSuccess,
-                            timestamp -> timestamp.get() / 1000.0)
-                    .description("Unix time of last completed successful poll; zero until first success")
-                    .tag("channel", channel.id())
-                    .register(meterRegistry);
-            for (String outcome : List.of("success", "failure")) {
-                Counter.builder("radioparadise.collector.polls")
-                        .description("Completed channel polls, including unchanged songs")
-                        .tags("channel", channel.id(), "outcome", outcome)
-                        .register(meterRegistry);
-                meterRegistry.timer("radioparadise.collector.poll.duration",
-                        "channel", channel.id(), "outcome", outcome);
-            }
+            registerChannelMetrics(channel.id());
         }
     }
 
@@ -68,33 +56,75 @@ public class SongTrackerScheduler {
         log.debug("Checking current songs on all channels...");
 
         for (RadioParadiseChannel channel : channels) {
-            String channelId = channel.id();
-            Timer.Sample sample = Timer.start(meterRegistry);
-            String outcome = "failure";
-            try {
-                Optional<RadioParadiseResponse> currentSong = radioParadiseClient.getCurrentSong(channelId);
-                if (currentSong.isEmpty()) {
-                    continue;
-                }
-                saveSongIfChanged(channelId, currentSong.get());
-                // Unchanged songs are healthy polls too. Persistence failures never advance freshness.
-                lastSuccessfulPollByChannel.get(channelId).set(meterRegistry.config().clock().wallTime());
-                outcome = "success";
-            } catch (InvalidSongMetadataException e) {
-                log.warn("Skipping invalid song metadata on channel {}: {}", channelId, e.getMessage());
-            } catch (Exception e) {
-                log.error("Error tracking song on channel {}", channelId, e);
-            } finally {
-                meterRegistry.counter("radioparadise.collector.polls",
-                        "channel", channelId, "outcome", outcome).increment();
-                sample.stop(meterRegistry.timer("radioparadise.collector.poll.duration",
-                        "channel", channelId, "outcome", outcome));
+            pollChannel(channel.id());
+        }
+    }
+
+    private void registerChannelMetrics(String channelId) {
+        AtomicLong lastSuccess = new AtomicLong(0);
+        lastSuccessfulPollByChannel.put(channelId, lastSuccess);
+        Gauge.builder(
+                        "radioparadise.collector.last.success.timestamp.seconds",
+                        lastSuccess,
+                        timestamp -> timestamp.get() / 1000.0)
+                .description(
+                        "Unix time of last completed successful poll; zero until first success")
+                .tag("channel", channelId)
+                .register(meterRegistry);
+        for (String outcome : List.of("success", "failure")) {
+            Counter.builder("radioparadise.collector.polls")
+                    .description("Completed channel polls, including unchanged songs")
+                    .tags("channel", channelId, "outcome", outcome)
+                    .register(meterRegistry);
+            meterRegistry.timer(
+                    "radioparadise.collector.poll.duration",
+                    "channel",
+                    channelId,
+                    "outcome",
+                    outcome);
+        }
+    }
+
+    private void pollChannel(String channelId) {
+        Timer.Sample sample = Timer.start(meterRegistry);
+        String outcome = "failure";
+        try {
+            Optional<RadioParadiseResponse> currentSong =
+                    radioParadiseClient.getCurrentSong(channelId);
+            if (currentSong.isEmpty()) {
+                return;
             }
+            saveSongIfChanged(channelId, currentSong.get());
+            // Unchanged songs are healthy polls too. Persistence failures never advance freshness.
+            lastSuccessfulPollByChannel
+                    .get(channelId)
+                    .set(meterRegistry.config().clock().wallTime());
+            outcome = "success";
+        } catch (InvalidSongMetadataException e) {
+            log.warn("Skipping invalid song metadata on channel {}: {}", channelId, e.getMessage());
+        } catch (Exception e) {
+            log.error("Error tracking song on channel {}", channelId, e);
+        } finally {
+            meterRegistry
+                    .counter(
+                            "radioparadise.collector.polls",
+                            "channel",
+                            channelId,
+                            "outcome",
+                            outcome)
+                    .increment();
+            sample.stop(
+                    meterRegistry.timer(
+                            "radioparadise.collector.poll.duration",
+                            "channel",
+                            channelId,
+                            "outcome",
+                            outcome));
         }
     }
 
     private void saveSongIfChanged(String channelId, RadioParadiseResponse song) {
-        SongKey currentSongKey = generateSongKey(song);
+        SongKey currentSongKey = new SongKey(song.getArtist(), song.getTitle(), song.getAlbum());
         SongKey lastSongKey = lastSongKeyByChannel.get(channelId);
 
         if (currentSongKey.equals(lastSongKey)) {
@@ -104,13 +134,13 @@ public class SongTrackerScheduler {
 
         songService.saveOrUpdateSong(song, channelId);
         // The transactional service proxy has committed before reporting success.
-        log.info("Tracked song on channel {}: {} - {} ({})",
-                channelId, song.getArtist(), song.getTitle(), song.getAlbum());
+        log.info(
+                "Tracked song on channel {}: {} - {} ({})",
+                channelId,
+                song.getArtist(),
+                song.getTitle(),
+                song.getAlbum());
         lastSongKeyByChannel.put(channelId, currentSongKey);
-    }
-
-    private SongKey generateSongKey(RadioParadiseResponse song) {
-        return new SongKey(song.getArtist(), song.getTitle(), song.getAlbum());
     }
 
     private record SongKey(String artist, String title, String album) {}

@@ -1,11 +1,14 @@
 package com.radioparadise.tracker.service;
 
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.time.Duration;
-import java.util.concurrent.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import static org.assertj.core.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
 class ExpiringCacheTest {
     @Test
@@ -25,7 +28,13 @@ class ExpiringCacheTest {
     @Test
     void failuresDoNotPoisonCache() {
         var cache = new ExpiringCache<String, Integer>(2, Duration.ofSeconds(30));
-        assertThatThrownBy(() -> cache.get("a", () -> { throw new IllegalStateException("offline"); }))
+        assertThatThrownBy(
+                        () ->
+                                cache.get(
+                                        "a",
+                                        () -> {
+                                            throw new IllegalStateException("offline");
+                                        }))
                 .hasMessage("offline");
         assertThat(cache.get("a", () -> 2)).isEqualTo(2);
     }
@@ -35,9 +44,16 @@ class ExpiringCacheTest {
         var cache = new ExpiringCache<String, Integer>(2, Duration.ofSeconds(30));
         AtomicInteger calls = new AtomicInteger();
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            var tasks = java.util.stream.IntStream.range(0, 20)
-                    .mapToObj(i -> executor.submit(() -> cache.get("a", calls::incrementAndGet))).toList();
-            for (var task : tasks) assertThat(task.get(5, TimeUnit.SECONDS)).isEqualTo(1);
+            var tasks =
+                    java.util.stream.IntStream.range(0, 20)
+                            .mapToObj(
+                                    i ->
+                                            executor.submit(
+                                                    () -> cache.get("a", calls::incrementAndGet)))
+                            .toList();
+            for (var task : tasks) {
+                assertThat(task.get(5, TimeUnit.SECONDS)).isEqualTo(1);
+            }
         }
         assertThat(calls.get()).isEqualTo(1);
     }

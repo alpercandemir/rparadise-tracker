@@ -154,6 +154,23 @@ Existing database rows work immediately; nullable enrichment columns are added b
 and populated as songs are opened or observed again. Lyrics are excluded from list responses.
 Set `lyrics.api.base-url` to override the provider URL in a test environment.
 
+## Development guidelines and checks
+
+Java changes follow the repository's [coding guidelines](AGENTS.md), adapted from
+the chatty-bot backend rules. Keep existing API behavior, transaction boundaries,
+cache semantics, and collector metrics intact when refactoring.
+
+Run the backend checks with Java 25:
+
+```bash
+./mvnw -B -ntp verify
+```
+
+Database integration tests require Docker and run against a disposable PostgreSQL
+instance via `bash scripts/test-records-postgres.sh`. Ordinary Maven runs skip these tests.
+For frontend changes, run `npm --prefix frontend test` and
+`npm --prefix frontend run build`.
+
 ## Configuration
 
 All core settings are in `src/main/resources/application.properties`:

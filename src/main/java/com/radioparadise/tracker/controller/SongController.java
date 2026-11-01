@@ -1,21 +1,22 @@
 package com.radioparadise.tracker.controller;
 
+import com.radioparadise.tracker.dto.SongDetails;
 import com.radioparadise.tracker.dto.TrackRecord;
 import com.radioparadise.tracker.model.RadioParadiseChannel;
-import com.radioparadise.tracker.service.SongService;
-import com.radioparadise.tracker.service.SongDetailsService;
+import com.radioparadise.tracker.model.Song;
 import com.radioparadise.tracker.service.ExpiringCache;
-import com.radioparadise.tracker.dto.SongDetails;
-import org.springframework.http.CacheControl;
+import com.radioparadise.tracker.service.SongDetailsService;
+import com.radioparadise.tracker.service.SongService;
 import java.time.Duration;
+import java.util.List;
+import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/songs")
@@ -23,45 +24,56 @@ import java.util.List;
 public class SongController {
 
     private final SongService songService;
-    private final SongDetailsService details;
-    private final ExpiringCache<String, List<TrackRecord>> cache = new ExpiringCache<>(7, Duration.ofSeconds(30));
+    private final SongDetailsService songDetailsService;
+    private final ExpiringCache<String, List<TrackRecord>> songLists =
+            new ExpiringCache<>(7, Duration.ofSeconds(30));
 
-    public void clearCache() { cache.clear(); }
+    public void clearCache() {
+        songLists.clear();
+    }
 
     @GetMapping("/current")
     public ResponseEntity<List<TrackRecord>> getCurrentSongs() {
-        return cached("current", songService::getCurrentSongs);
+        return cachedSongs("current", songService::getCurrentSongs);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<SongDetails> getSong(@PathVariable long id) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(details.get(id));
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(songDetailsService.get(id));
     }
 
     @GetMapping
     public ResponseEntity<List<TrackRecord>> getAllSongs() {
-        return cached("all", () -> songService.getAllSongs());
+        return cachedSongs("all", songService::getAllSongs);
     }
 
     @GetMapping("/recent")
     public ResponseEntity<List<TrackRecord>> getRecentSongs() {
-        return cached("recent", () -> songService.getRecentSongs());
+        return cachedSongs("recent", songService::getRecentSongs);
     }
 
     @GetMapping("/most-played")
     public ResponseEntity<List<TrackRecord>> getMostPlayedSongs() {
-        return cached("most-played", () -> songService.getMostPlayedSongs());
+        return cachedSongs("most-played", songService::getMostPlayedSongs);
     }
 
     @GetMapping("/channel/{channelId}")
     public ResponseEntity<List<TrackRecord>> getSongsByChannel(@PathVariable String channelId) {
         String validatedChannelId = RadioParadiseChannel.fromId(channelId).id();
-        return cached("channel:" + validatedChannelId, () -> songService.getSongsByChannel(validatedChannelId));
+        return cachedSongs(
+                "channel:" + validatedChannelId,
+                () -> songService.getSongsByChannel(validatedChannelId));
     }
 
-    private ResponseEntity<List<TrackRecord>> cached(String key,
-            java.util.function.Supplier<List<com.radioparadise.tracker.model.Song>> load) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(cache.get(key, () -> load.get().stream().map(TrackRecord::from).toList()));
+    private ResponseEntity<List<TrackRecord>> cachedSongs(
+            String key, Supplier<List<Song>> loadSongs) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(
+                        songLists.get(
+                                key,
+                                () -> loadSongs.get().stream().map(TrackRecord::from).toList()));
     }
 }
