@@ -21,12 +21,34 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-24.04
+    environment: production
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.image_sha }}
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate deployment commit
+        env:
+          IMAGE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.image_sha }}
+        run: |
+          if [[ ! "$IMAGE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'The deployment commit must be a full 40-character lowercase commit SHA.' >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$IMAGE_SHA" origin/main; then
+            echo 'The deployment commit must belong to the main branch history.' >&2
+            exit 1
+          fi
+          git checkout --detach "$IMAGE_SHA"
       - name: Install SSH credentials
         env:
           SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
