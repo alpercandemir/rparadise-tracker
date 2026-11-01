@@ -22,7 +22,7 @@
             </dl>
             <nav class="listening-links" aria-label="Find this recording on music services">
               <a v-for="link in links" :key="link.provider" :href="link.url" :aria-label="link.label"
-                :title="link.label" target="_blank" rel="noopener noreferrer">
+                :title="link.label" :target="link.target" rel="noopener noreferrer">
                 <img :src="serviceIcons[link.provider]" alt="" aria-hidden="true" />
               </a>
             </nav>
@@ -62,7 +62,11 @@ const emit = defineEmits(['close'])
 const dialog = ref(null)
 const details = ref(null)
 const track = computed(() => details.value?.song || props.song)
-const links = computed(() => listeningLinks(track.value, details.value?.recordingLinks))
+const browser = typeof navigator === 'undefined' ? {} : {
+  userAgent: navigator.userAgent,
+  maxTouchPoints: navigator.maxTouchPoints
+}
+const links = computed(() => listeningLinks(track.value, details.value?.recordingLinks, browser))
 const serviceIcons = { spotify: spotifyIcon, youtube: youtubeMusicIcon }
 const lyricSource = computed(() => lyricsSource(details.value?.lyricsSource))
 const loading = ref(true)

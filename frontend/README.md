@@ -23,6 +23,23 @@ in the URL so views can be bookmarked and browser Back/Forward works.
 Timestamps include seconds and use the browser's timezone; playback date
 filters use the same timezone. The API returns UTC instants.
 
+## Opening music apps
+
+The Spotify and YouTube Music icons prefer the installed apps where the browser
+supports app links. Android Chrome uses a user-initiated
+[intent link with an HTTPS fallback](https://developer.chrome.com/docs/android/intents)
+for both matched tracks and artist/title searches. If the app cannot be opened,
+Chrome follows the original service URL. Android WebViews retain HTTPS links.
+
+iPhone/iPad links use same-tab HTTPS navigation for the providers' universal-link
+handling. Other Android browsers also retain same-tab HTTPS links. Desktop and
+unknown browsers continue opening HTTPS links in a new tab. No installation
+probing, automatic launch timers, or additional app permissions are used.
+
+The OS, browser, and user link preferences ultimately control app handoff. Check
+real iOS and Android devices with and without the apps installed when validating
+native behavior; a desktop browser or unit test cannot verify an installed mobile app.
+
 ## Local development
 
 Use Node.js 24 to match CI and Docker, and start the backend on port 8081.
