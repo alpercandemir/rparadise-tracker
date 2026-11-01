@@ -102,6 +102,8 @@ public class SongService {
                 .title(response.getTitle())
                 .album(response.getAlbum())
                 .year(response.getYear())
+                .rpSongId(response.getRpSongId())
+                .durationSeconds(response.getDurationMillis() == null ? null : response.getDurationMillis() / 1000.0)
                 .coverUrl(response.getCover())
                 .coverMediumUrl(response.getCoverMed())
                 .coverSmallUrl(response.getCoverSmall())
@@ -114,6 +116,12 @@ public class SongService {
     }
 
     private void refreshArtwork(Song song, RadioParadiseResponse response) {
+        if (response.getRpSongId() != null && response.getRpSongId() > 0) {
+            song.setRpSongId(response.getRpSongId());
+        }
+        if (response.getDurationMillis() != null && response.getDurationMillis() > 0) {
+            song.setDurationSeconds(response.getDurationMillis() / 1000.0);
+        }
         if (StringUtils.hasText(response.getCover())) song.setCoverUrl(response.getCover());
         if (StringUtils.hasText(response.getCoverMed())) song.setCoverMediumUrl(response.getCoverMed());
         if (StringUtils.hasText(response.getCoverSmall())) song.setCoverSmallUrl(response.getCoverSmall());

@@ -27,7 +27,7 @@
         </div>
         <section class="lyrics-section" aria-labelledby="lyrics-title" :aria-busy="loading">
           <div class="lyrics-heading"><h3 id="lyrics-title">Lyrics</h3>
-            <a v-if="details?.lyricsSource" :href="details.lyricsSource" target="_blank" rel="noopener noreferrer">Source: LRCLIB ↗</a>
+            <a v-if="details?.lyricsSource && details?.lyrics" :href="details.lyricsSource" target="_blank" rel="noopener noreferrer">Source: Radio Paradise ↗</a>
           </div>
           <p v-if="loading" class="status" role="status">Finding song details…</p>
           <div v-else-if="error" class="status" role="alert">

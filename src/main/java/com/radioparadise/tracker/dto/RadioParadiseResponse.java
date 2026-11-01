@@ -7,6 +7,12 @@ import lombok.Data;
 public class RadioParadiseResponse {
 
     private Integer time;
+
+    @JsonProperty("song_id")
+    private Long rpSongId;
+
+    @JsonProperty("duration")
+    private Long durationMillis;
     private String artist;
     private String title;
     private String album;

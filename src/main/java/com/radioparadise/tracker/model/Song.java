@@ -49,6 +49,8 @@ public class Song {
     @Column(columnDefinition = "text")
     private String lyrics;
 
+    private Long rpSongId;
+
     private String lyricsStatus;
 
     @Column(length = 500)

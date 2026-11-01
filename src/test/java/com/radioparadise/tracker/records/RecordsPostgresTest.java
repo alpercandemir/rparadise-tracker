@@ -60,13 +60,16 @@ class RecordsPostgresTest {
     @Test
     void detailsArePersistedAndApiCachesUseSnapshots() {
         Song song = songs.save(song("Details", "1"));
-        org.mockito.Mockito.when(lyricsClient.find("Artist", "Details", "Album"))
-                .thenReturn(new com.radioparadise.tracker.client.LyricsClient.Result("found", "Sample lyrics", "https://lrclib.net/api/get/12", 120.0));
+        org.mockito.Mockito.when(lyricsClient.find(null, "Artist", "Details", "Album", "1"))
+                .thenReturn(new com.radioparadise.tracker.client.LyricsClient.Result("found", "Sample lyrics", "https://radioparadise.com/music/song/12", 120.0, 12L));
         Map<?, ?> details = get("/api/songs/" + song.getId());
         assertThat(details.get("lyrics")).isEqualTo("Sample lyrics");
-        assertThat(songs.findById(song.getId()).orElseThrow().getLyrics()).isEqualTo("Sample lyrics");
+        Song enriched = songs.findById(song.getId()).orElseThrow();
+        assertThat(enriched.getLyrics()).isEqualTo("Sample lyrics");
+        assertThat(enriched.getRpSongId()).isEqualTo(12);
+        assertThat(enriched.getLyricsSource()).isEqualTo("https://radioparadise.com/music/song/12");
         get("/api/songs/" + song.getId());
-        org.mockito.Mockito.verify(lyricsClient, org.mockito.Mockito.times(1)).find("Artist", "Details", "Album");
+        org.mockito.Mockito.verify(lyricsClient, org.mockito.Mockito.times(1)).find(null, "Artist", "Details", "Album", "1");
         assertThat(items(get("/api/records/tracks"))).hasSize(1);
         song.setTitle("Changed later");
         songs.save(song);
@@ -82,7 +85,7 @@ class RecordsPostgresTest {
             Song managed = songs.findById(song.getId()).orElseThrow();
             var independent = new TransactionTemplate(transactions.getTransactionManager());
             independent.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-            independent.executeWithoutResult(other -> songs.updateDetails(song.getId(), "Saved lyrics", "found", "source", 100.0, Instant.now()));
+            independent.executeWithoutResult(other -> songs.updateDetails(song.getId(), "Saved lyrics", "found", "source", 100.0, Instant.now(), 12L));
             managed.setPlayCount(2);
             managed.setLastPlayed(Instant.now());
         });

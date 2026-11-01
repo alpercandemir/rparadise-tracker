@@ -19,8 +19,8 @@ public interface SongRepository extends JpaRepository<Song, Long>, JpaSpecificat
     @Modifying
     @Transactional
     @Query("update Song s set s.lyrics = :lyrics, s.lyricsStatus = :status, s.lyricsSource = :source, "
-            + "s.durationSeconds = :duration, s.metadataCheckedAt = :checkedAt where s.id = :id")
-    void updateDetails(Long id, String lyrics, String status, String source, Double duration, Instant checkedAt);
+            + "s.durationSeconds = :duration, s.metadataCheckedAt = :checkedAt, s.rpSongId = coalesce(:rpSongId, s.rpSongId) where s.id = :id")
+    void updateDetails(Long id, String lyrics, String status, String source, Double duration, Instant checkedAt, Long rpSongId);
 
     Optional<Song> findByArtistAndTitleAndAlbumAndChannel(String artist, String title, String album, String channel);
 

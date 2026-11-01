@@ -10,7 +10,7 @@ A Java 25 + Spring Boot application that continuously tracks currently playing s
 - Exposes browsing endpoints for all, recent, most-played, and channel-filtered songs
 - Includes a Vue.js dashboard frontend with charts and channel-based views
 - Opens song details from live cards, lists, charts, tracks, and playback history, with large artwork,
-  listening statistics, and lyrics from [LRCLIB](https://lrclib.net/docs) when available
+  listening statistics, and lyrics directly from Radio Paradise when available
 - Uses bounded JVM caches for RP reads and internal list/page responses (30-second TTL)
 
 ## Architecture
@@ -133,7 +133,7 @@ Known tracking limitation: the collector remembers the last song per channel in 
 
 ### Song details and caching
 
-The collector is the only caller of RP. Its client caches each channel for 30 seconds,
+The collector polls RP’s richer `/api/nowplaying_list_v2022?mode=wip-channel` feed. Its client caches each channel for 30 seconds,
 including empty/error results to avoid retry storms. Dashboard lists cache seven response
 variants; track and playback pages each cache at most 128 validated queries. Cached values
 are DTO snapshots, and concurrent cache misses share a load. Caches expire 30 seconds after
@@ -145,14 +145,22 @@ Only the three live cards refresh every 30 seconds. Browsing lists, charts, reco
 scroll position, focus, and the selected modal stay stable. Hidden browser tabs skip polling.
 Lists/charts reload on returning from Records; Records has an explicit Refresh button.
 
-Opening a song looks up its exact artist/title/album in LRCLIB, with a 2-second connection
-timeout and 4-second read timeout. Lyrics, source URL, duration, status, and check time are
-stored on the song. Successful/instrumental results refresh after 30 days, missing results
-after one day, and provider failures after five minutes. Previously saved lyrics survive
-temporary provider errors. Large/medium/small RP artwork URLs are retained when collected.
-Existing database rows work immediately; nullable enrichment columns are added by Hibernate
-and populated as songs are opened or observed again. Lyrics are excluded from list responses.
-Set `lyrics.api.base-url` to override the provider URL in a test environment.
+Opening a song fetches RP’s own `/siteapi.php?file=music::song&song_id=...` endpoint,
+with a 2-second connection timeout and 4-second read timeout. RP song IDs and duration
+are collected from the live feed. Existing rows resolve their ID by exact artist/title/album
+matching against the same cached recent history (up to 100 songs per channel); rows outside that history gain an ID
+when they play again. No account credentials or external lyrics provider are used.
+
+RP’s lyrics HTML is converted to plain text before storage and display. Lyrics, RP song ID,
+source URL, duration, status, and check time persist in PostgreSQL. Successful/instrumental
+results refresh after 30 days, missing results after one day, and provider failures after
+five minutes. A bounded 256-entry, 30-second client cache also coalesces detail lookups.
+Previously saved RP lyrics survive temporary RP errors. Results from the earlier provider
+are replaced on the next opening, regardless of their old TTL.
+
+Large/medium/small RP artwork URLs are retained when collected. Existing rows remain
+valid; Hibernate adds the nullable RP ID column. Lyrics stay out of list responses.
+`radioparadise.api.base-url` configures both RP clients for local tests.
 
 ## Development guidelines and checks
 

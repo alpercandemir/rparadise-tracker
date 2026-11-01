@@ -23,19 +23,22 @@ public class SongDetailsService {
     }
 
     public SongDetails get(long id) {
-        if (id < 1) throw new IllegalArgumentException("Song ID must be positive");
+        if (id < 1) {
+            throw new IllegalArgumentException("Song ID must be positive");
+        }
         synchronized (locks[(int) (id % locks.length)]) {
             Song song = songs.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Song not found"));
             if (needsRefresh(song)) {
-                var result = lyrics.find(song.getArtist(), song.getTitle(), song.getAlbum());
+                var result = lyrics.find(song.getRpSongId(), song.getArtist(), song.getTitle(), song.getAlbum(), song.getChannel());
                 // Preserve a previously successful lookup when the provider has a temporary failure.
-                boolean preserve = result.status().equals("unavailable") && song.getLyricsStatus() != null
-                        && (song.getLyricsStatus().equals("found") || song.getLyricsStatus().equals("instrumental"));
+                boolean hasSavedRpLyrics = LyricsClient.isRadioParadiseSource(song.getLyricsSource())
+                        && ("found".equals(song.getLyricsStatus()) || "instrumental".equals(song.getLyricsStatus()));
+                boolean preserve = result.status().equals("unavailable") && hasSavedRpLyrics;
                 Instant checkedAt = Instant.now();
                 songs.updateDetails(id, preserve ? song.getLyrics() : result.lyrics(),
                         preserve ? song.getLyricsStatus() : result.status(),
                         preserve ? song.getLyricsSource() : result.source(),
-                        preserve ? song.getDurationSeconds() : result.duration(), checkedAt);
+                        result.duration() == null ? song.getDurationSeconds() : result.duration(), checkedAt, result.rpSongId());
                 song = songs.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
             }
             return SongDetails.from(song);
@@ -43,7 +46,14 @@ public class SongDetailsService {
     }
 
     private boolean needsRefresh(Song song) {
-        if (song.getMetadataCheckedAt() == null || song.getLyricsStatus() == null) return true;
+        if (!LyricsClient.isRadioParadiseSource(song.getLyricsSource())
+                || song.getMetadataCheckedAt() == null || song.getLyricsStatus() == null) {
+            return true;
+        }
+        // A legacy row may have gained its RP ID since an earlier unresolved lookup.
+        if (song.getRpSongId() != null && LyricsClient.SOURCE.equals(song.getLyricsSource())) {
+            return true;
+        }
         Duration ttl = switch (song.getLyricsStatus()) {
             case "found", "instrumental" -> Duration.ofDays(30);
             case "not_found" -> Duration.ofDays(1);

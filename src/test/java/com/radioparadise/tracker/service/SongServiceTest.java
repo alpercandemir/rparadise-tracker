@@ -68,6 +68,8 @@ class SongServiceTest {
         assertThat(newSong.getYear()).isEqualTo("2020");
         assertThat(newSong.getCoverUrl()).isEqualTo("https://example.com/cover.jpg");
         assertThat(newSong.getPlayCount()).isEqualTo(1);
+        assertThat(newSong.getRpSongId()).isEqualTo(9876);
+        assertThat(newSong.getDurationSeconds()).isEqualTo(240);
         assertThat(newSong.getFirstPlayed()).isBetween(beforeSave, afterSave);
         assertThat(newSong.getLastPlayed()).isEqualTo(newSong.getFirstPlayed());
         assertThat(result).isSameAs(persistedSong);
@@ -195,6 +197,8 @@ class SongServiceTest {
         response.setTitle("Title");
         response.setAlbum("Album");
         response.setYear("2020");
+        response.setRpSongId(9876L);
+        response.setDurationMillis(240000L);
         response.setCover("https://example.com/cover.jpg");
         return response;
     }
