@@ -288,3 +288,19 @@ Captured from the updated frontend on November 1, 2026, using the running API. S
 - Vue 3
 - Vite
 - Chart.js
+
+## License and third-party content
+
+The project's original source code and documentation are licensed under the
+[MIT License](LICENSE).
+
+The description of this project as non-commercial refers to how the project is
+operated. The MIT License permits commercial reuse of the licensed code.
+
+Third-party content is not covered by this project's MIT License. This includes
+album artwork, lyrics, music metadata, audio, logos, trademarks, and third-party
+content visible in repository screenshots. This project claims no ownership of
+that content and grants no rights to it. Any rights remain with their respective
+owners, and use is subject to applicable terms and permissions.
+
+Third-party software dependencies retain their own licenses.
