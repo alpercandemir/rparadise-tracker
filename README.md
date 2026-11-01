@@ -43,7 +43,7 @@ A Java 25 + Spring Boot application with a Vue 3 dashboard that continuously tra
 
 ## Explore the app
 
-- **Dashboard** (`/#/`): see the latest observed song for each channel, browse song lists, and explore charts.
+- **Dashboard** (`/#/`): see the latest observed song for each channel and browse up to 500 most recently played tracks, ordered by last played with ID as a stable tie-breaker. Channel tabs and decade track lists use this selection. Total Tracks, channel/decade chart counts, and Most Played cover the full archive. Follow **Browse all records** for the paginated archive.
 - **Records → All Tracks** (`/#/records`): search by track, artist, or album; filter by channel; sort columns; and choose 25, 50, or 100 rows per page.
 - **Records → Playback History** (`/#/records?tab=plays`): browse individual observed plays and filter by calendar dates in your timezone. Filters, sorting, and pagination are preserved in the URL.
 - **Song details**: select a song card, list entry, chart track, or Records title/artwork to see larger artwork, channel-specific listening statistics, duration, and available lyrics from Radio Paradise or LRCLIB.
@@ -147,6 +147,7 @@ For the existing Oracle VM, GHCR image deployment, production approval, and roll
 ## API Endpoints
 
 - `GET /api/songs` - List all tracked songs
+- `GET /api/songs/dashboard` - Latest 500 tracks (`lastPlayed` and ID descending), plus all-time total, channel counts, and decade counts; cached for 30 seconds
 - `GET /api/songs/current` - Latest observed song per channel, from our database
 - `GET /api/songs/{id}` - Song details and on-demand, persisted lyrics metadata
 - `GET /api/songs/recent` - List latest 20 songs by `lastPlayed`

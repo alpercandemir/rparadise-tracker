@@ -1,6 +1,7 @@
 package com.radioparadise.tracker.records;
 
 import com.radioparadise.tracker.dto.RadioParadiseResponse;
+import com.radioparadise.tracker.dto.Dashboard;
 import com.radioparadise.tracker.model.PlaybackEvent;
 import com.radioparadise.tracker.model.Song;
 import com.radioparadise.tracker.repository.PlaybackEventRepository;
@@ -211,6 +212,64 @@ class RecordsPostgresTest {
         assertThat(songs.findById(failed.getId()).orElseThrow().getPlayCount()).isEqualTo(1);
         assertThat(plays.count()).isZero();
         org.mockito.Mockito.verifyNoInteractions(lyricsClient);
+    }
+
+    @Test
+    void dashboardLimitsLatestTracksButRetainsArchiveSummariesAndBrowsing() {
+        List<Song> recent = songs.saveAll(IntStream.range(0, 501)
+                .mapToObj(i -> song("Recent " + i, "1")).toList());
+        Song older = song("Older favorite", "0");
+        older.setYear("1975");
+        older.setLastPlayed(older.getLastPlayed().minusSeconds(3600));
+        older.setFirstPlayed(older.getLastPlayed());
+        older.setPlayCount(100);
+        Song unknownYear = song("Unknown year", "2");
+        unknownYear.setYear(null);
+        unknownYear.setLastPlayed(older.getLastPlayed());
+        unknownYear.setFirstPlayed(older.getLastPlayed());
+        songs.saveAll(List.of(older, unknownYear));
+
+        var response = http.get().uri("http://localhost:" + port + "/api/songs/dashboard")
+                .retrieve().toEntity(Dashboard.class);
+        var dashboard = response.getBody();
+
+        assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
+        assertThat(dashboard.latestTracks()).hasSize(500);
+        assertThat(dashboard.latestTracks().getFirst().id()).isEqualTo(recent.getLast().getId());
+        assertThat(dashboard.latestTracks().getLast().id()).isEqualTo(recent.get(1).getId());
+        assertThat(dashboard.totalTracks()).isEqualTo(503);
+        assertThat(dashboard.tracksByChannel()).isEqualTo(Map.of("0", 1L, "1", 501L, "2", 1L));
+        assertThat(dashboard.tracksByDecade()).isEqualTo(Map.of("70s & Earlier", 1L, "2020s", 501L));
+        assertThat(get("/api/records/tracks").get("totalElements")).isEqualTo(503);
+        List<?> all = http.get().uri("http://localhost:" + port + "/api/songs")
+                .retrieve().body(List.class);
+        assertThat(all).hasSize(503);
+        List<?> mostPlayed = http.get().uri("http://localhost:" + port + "/api/songs/most-played")
+                .retrieve().body(List.class);
+        assertThat(((Map<?, ?>) mostPlayed.getFirst()).get("title")).isEqualTo("Older favorite");
+
+        Song changed = recent.getLast();
+        changed.setTitle("Changed later");
+        changed.setYear("1985");
+        songs.save(changed);
+        assertThat(http.get().uri("http://localhost:" + port + "/api/songs/dashboard")
+                .retrieve().body(Dashboard.class)).isEqualTo(dashboard);
+        songController.clearCache();
+        var refreshed = http.get().uri("http://localhost:" + port + "/api/songs/dashboard")
+                .retrieve().body(Dashboard.class);
+        assertThat(refreshed.latestTracks().getFirst().title()).isEqualTo("Changed later");
+        assertThat(refreshed.tracksByDecade().get("80s")).isEqualTo(1L);
+    }
+
+    @Test
+    void emptyDashboardReturnsZeroTotals() {
+        var dashboard = http.get().uri("http://localhost:" + port + "/api/songs/dashboard")
+                .retrieve().body(Dashboard.class);
+
+        assertThat(dashboard.latestTracks()).isEmpty();
+        assertThat(dashboard.totalTracks()).isZero();
+        assertThat(dashboard.tracksByChannel()).isEmpty();
+        assertThat(dashboard.tracksByDecade()).isEmpty();
     }
 
     @Test

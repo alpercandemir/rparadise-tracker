@@ -4,7 +4,7 @@
     <ul class="legend" aria-label="Tracks by channel">
       <li v-for="(channel, id) in CHANNELS" :key="id">
         <span class="swatch" :style="{ background: channel.color }" aria-hidden="true"></span>
-        <span>{{ channel.name }}</span><strong>{{ counts[id] }} <span>tracks</span></strong>
+        <span>{{ channel.name }}</span><strong>{{ counts[id] ?? 0 }} <span>tracks</span></strong>
       </li>
     </ul>
   </div>
@@ -16,18 +16,10 @@ import { Doughnut } from 'vue-chartjs'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { CHANNELS } from '../services/api.js'
 ChartJS.register(ArcElement, Tooltip, Legend)
-const props = defineProps({ songs: Array })
-const counts = computed(() => {
-  const totals = { '0': 0, '1': 0, '2': 0 }
-  for (const song of props.songs) {
-    const id = Object.keys(CHANNELS).find(id => song.channel === id || song.channel === CHANNELS[id].name)
-    if (id !== undefined) totals[id]++
-  }
-  return totals
-})
+const props = defineProps({ counts: Object })
 const chartData = computed(() => ({
   labels: Object.values(CHANNELS).map(channel => channel.name),
-  datasets: [{ data: Object.values(counts.value), backgroundColor: Object.values(CHANNELS).map(channel => channel.color), borderWidth: 4, borderColor: '#fff', hoverOffset: 4 }]
+  datasets: [{ data: Object.keys(CHANNELS).map(id => props.counts[id] ?? 0), backgroundColor: Object.values(CHANNELS).map(channel => channel.color), borderWidth: 4, borderColor: '#fff', hoverOffset: 4 }]
 }))
 const chartOptions = { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } }
 </script>

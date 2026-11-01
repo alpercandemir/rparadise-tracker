@@ -1,6 +1,8 @@
 package com.radioparadise.tracker.service;
 
 import com.radioparadise.tracker.dto.RadioParadiseResponse;
+import com.radioparadise.tracker.dto.Dashboard;
+import com.radioparadise.tracker.dto.TrackRecord;
 import com.radioparadise.tracker.model.Song;
 import com.radioparadise.tracker.model.PlaybackEvent;
 import com.radioparadise.tracker.repository.SongRepository;
@@ -14,13 +16,18 @@ import org.springframework.util.StringUtils;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 public class SongService {
 
     private static final int DEFAULT_SONG_RESULT_LIMIT = 20;
+    private static final int DASHBOARD_TRACK_LIMIT = 500;
+    private static final Pattern YEAR_PREFIX = Pattern.compile("^\\s*([+-]?[0-9]+)");
 
     private final SongRepository songRepository;
     private final PlaybackEventRepository playbackEventRepository;
@@ -68,6 +75,53 @@ public class SongService {
 
     public List<Song> getAllSongs() {
         return songRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public Dashboard getDashboard() {
+        var latest = songRepository.findAllByOrderByLastPlayedDescIdDesc(
+                PageRequest.of(0, DASHBOARD_TRACK_LIMIT))
+                .stream().map(TrackRecord::from).toList();
+        Map<String, Long> channels = new LinkedHashMap<>();
+        Map<String, Long> decades = new LinkedHashMap<>();
+        long total = 0;
+        for (var count : songRepository.countTracksByChannelAndYear()) {
+            total += count.getTrackCount();
+            channels.merge(count.getChannel(), count.getTrackCount(), Long::sum);
+            String decade = decadeForYear(count.getYear());
+            if (!decade.equals("Unknown")) {
+                decades.merge(decade, count.getTrackCount(), Long::sum);
+            }
+        }
+        return new Dashboard(latest, total, channels, decades);
+    }
+
+    private static String decadeForYear(String year) {
+        var prefix = YEAR_PREFIX.matcher(year == null ? "" : year);
+        if (!prefix.find()) {
+            return "Unknown";
+        }
+        // Match the browser's parseInt behavior for release years with trailing text.
+        double number = Double.parseDouble(prefix.group(1));
+        if (!Double.isFinite(number)) {
+            return "Unknown";
+        }
+        if (number < 1980) {
+            return "70s & Earlier";
+        }
+        if (number < 1990) {
+            return "80s";
+        }
+        if (number < 2000) {
+            return "90s";
+        }
+        if (number < 2010) {
+            return "2000s";
+        }
+        if (number < 2020) {
+            return "2010s";
+        }
+        return "2020s";
     }
 
     public List<Song> getRecentSongs() {

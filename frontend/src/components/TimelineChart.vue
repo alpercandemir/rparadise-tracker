@@ -3,7 +3,7 @@
     <div class="decade-summary">
       <div class="chart-container"><Doughnut :data="chartData" :options="chartOptions" aria-label="Distribution of tracks by decade; select a decade below to explore" role="img" /></div>
       <div class="decade-options" aria-label="Browse tracks by decade">
-        <p class="hint">Choose a decade to explore its tracks.</p>
+        <p class="hint">All-time totals. Choose a decade to explore tracks from the latest 500.</p>
         <button v-for="(label, index) in chartData.labels" :key="label" class="decade-option"
           :aria-pressed="selectedDecade === label" @click="selectedDecade = label">
           <span class="swatch" :style="{ background: colors[index] }" aria-hidden="true"></span>
@@ -12,9 +12,10 @@
       </div>
     </div>
     <section v-if="selectedDecade" class="song-panel" aria-label="Selected decade tracks">
-      <div class="panel-header"><h4>{{ selectedDecade }} · {{ filteredSongs.length }} tracks</h4>
+      <div class="panel-header"><h4>{{ selectedDecade }} · {{ filteredSongs.length }} tracks from the latest 500</h4>
         <button @click="selectedDecade = null" class="close-btn" aria-label="Close decade tracks">✕</button>
       </div>
+      <p v-if="!filteredSongs.length" class="hint">No tracks from this decade in the latest 500. <a href="#/records">Browse all records</a>.</p>
       <div class="panel-content">
         <button v-for="song in filteredSongs" :key="song.id" class="song-item" @click="$emit('select-song', song)"
           :aria-label="`View details for ${song.title} by ${song.artist}`">
@@ -34,11 +35,11 @@ import AlbumArtwork from './AlbumArtwork.vue'
 import { getDecade, groupDecades } from '../services/charts.js'
 ChartJS.register(ArcElement, Tooltip, Legend)
 defineEmits(['select-song'])
-const props = defineProps({ songs: Array })
+const props = defineProps({ songs: Array, counts: Object })
 const selectedDecade = ref(null)
 const colors = ['#5145a6', '#9a3971', '#176d82', '#94703a', '#44806b', '#807097']
 const chartData = computed(() => {
-  const groups = groupDecades(props.songs)
+  const groups = groupDecades(props.counts)
   return { labels: groups.map(group => group.label), datasets: [{ data: groups.map(group => group.count), backgroundColor: colors, borderWidth: 4, borderColor: '#fff', hoverOffset: 4 }] }
 })
 const chartOptions = {

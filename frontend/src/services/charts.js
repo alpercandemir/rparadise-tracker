@@ -11,7 +11,7 @@ export function getDecade(year) {
     return '2020s'
 }
 
-export function groupDecades(songs) {
-    return decadeOrder.map(label => ({ label, count: songs.filter(song => getDecade(song.year) === label).length }))
+export function groupDecades(counts) {
+    return decadeOrder.map(label => ({ label, count: counts[label] ?? 0 }))
         .filter(group => group.count > 0)
 }
