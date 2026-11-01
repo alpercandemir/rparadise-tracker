@@ -1,0 +1,41 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_sha:
+        description: Commit SHA to deploy (or use the Rollback button with an older SHA)
+        required: true
+        type: string
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  queue: max
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install SSH credentials
+        env:
+          SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' '138.2.168.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGqx2YJFhibyRhBYVvaAf8FRFSSCWFK6eowGC4jUgiXU' > ~/.ssh/known_hosts
+      - name: Deploy image
+        env:
+          IMAGE: ghcr.io/alpercandemir/rparadise-tracker:sha-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.image_sha }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes ubuntu@138.2.168.194 \
+            "cd /home/ubuntu/rparadise-tracker && APP_IMAGE='$IMAGE' sudo --preserve-env=APP_IMAGE docker compose -f compose.yaml -f compose.observability.yaml -f compose.production.yaml pull app && APP_IMAGE='$IMAGE' sudo --preserve-env=APP_IMAGE docker compose -f compose.yaml -f compose.observability.yaml -f compose.production.yaml up -d --no-build --wait --wait-timeout 300 app"
+          curl --fail --silent --show-error https://rparadise.138.2.168.194.sslip.io/api/songs
