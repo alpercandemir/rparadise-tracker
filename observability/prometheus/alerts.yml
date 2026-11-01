@@ -1,0 +1,112 @@
+groups:
+  - name: availability
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: '{{ $labels.job }} target is unreachable'
+          description: 'Prometheus cannot scrape {{ $labels.instance }}. Inspect container health and logs.'
+      - alert: PublicEndpointDown
+        expr: probe_success{job="blackbox"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Public HTTPS probe failed: {{ $labels.instance }}'
+          description: 'The in-VM probe cannot complete a valid TLS HTTP200 request. This is not an independent external monitor.'
+      - alert: CertificateExpiring
+        expr: probe_ssl_earliest_cert_expiry{job="blackbox"} - time() < 14 * 86400
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'TLS certificate expires within 14 days'
+          description: 'Check Caddy renewal and inbound 80/443 access for {{ $labels.instance }}.'
+      - alert: CollectorStalled
+        expr: (time() - radioparadise_collector_last_success_timestamp_seconds{job="app"} > 180) and on(instance) (process_uptime_seconds{job="app"} > 180)
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Collector has stopped succeeding for channel {{ $labels.channel }}'
+          description: 'No successful poll for over 3 minutes after startup; condition persisted 2 minutes. Check upstream API errors and collector logs.'
+  - name: host
+    rules:
+      - alert: HostMemoryPressure
+        expr: 1 - node_memory_MemAvailable_bytes{job="node"} / node_memory_MemTotal_bytes{job="node"} > 0.90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host available memory below 10 percent
+          description: 'Check Java heap, Loki and Prometheus memory; avoid host swapping or OOM kills.'
+      - alert: HostDiskSpaceLow
+        expr: node_filesystem_avail_bytes{job="node",fstype!~"tmpfs|overlay|squashfs",mountpoint="/"} / node_filesystem_size_bytes{job="node",fstype!~"tmpfs|overlay|squashfs",mountpoint="/"} < 0.15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Root filesystem has less than 15 percent free
+          description: 'Inspect Docker images, PostgreSQL and Loki volumes. Loki retention is time-based, not a disk size cap.'
+      - alert: HostDiskSpaceCritical
+        expr: node_filesystem_avail_bytes{job="node",fstype!~"tmpfs|overlay|squashfs",mountpoint="/"} / node_filesystem_size_bytes{job="node",fstype!~"tmpfs|overlay|squashfs",mountpoint="/"} < 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Root filesystem has less than 5 percent free
+          description: 'Urgently free space before PostgreSQL or collectors cannot write.'
+      - alert: HostCpuSaturated
+        expr: 1 - avg by(instance) (rate(node_cpu_seconds_total{job="node",mode="idle"}[5m])) > 0.90
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host CPU above 90 percent for 15 minutes
+          description: 'Inspect workload CPU usage and application latency.'
+  - name: postgres
+    rules:
+      - alert: PostgresDown
+        expr: pg_up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: PostgreSQL exporter cannot connect to the database
+          description: 'Inspect PostgreSQL health, exporter credentials and pg_monitor role.'
+      - alert: PostgresConnectionPressure
+        expr: sum by(instance) (pg_stat_database_numbackends{job="postgres"}) / on(instance) pg_settings_max_connections{job="postgres"} > 0.80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: PostgreSQL connections exceed 80 percent of maximum
+          description: 'Check Hikari pool pressure, idle connections and slow/blocked queries.'
+      - alert: PostgresDeadlocks
+        expr: increase(pg_stat_database_deadlocks{job="postgres",datname="radioparadise"}[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: PostgreSQL deadlock detected
+          description: 'Inspect PostgreSQL logs and application transaction ordering.'
+  - name: application
+    rules:
+      - alert: HttpServerErrors
+        expr: (sum by(job,instance) (rate(http_server_requests_seconds_count{job="app",uri!~"/actuator.*",status=~"5.."}[5m])) / clamp_min(sum by(job,instance) (rate(http_server_requests_seconds_count{job="app",uri!~"/actuator.*"}[5m])), 0.001) > 0.05) and (sum by(job,instance) (increase(http_server_requests_seconds_count{job="app",uri!~"/actuator.*"}[5m])) >= 20)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Application 5xx response ratio above 5 percent
+          description: 'At least 20 user requests in 5 minutes; health and metric probes excluded. Inspect app and Caddy logs.'
+      - alert: HttpHighLatency
+        expr: (histogram_quantile(0.95, sum by(job,instance,le) (rate(http_server_requests_seconds_bucket{job="app",uri!~"/actuator.*"}[5m]))) > 2) and (sum by(job,instance) (increase(http_server_requests_seconds_count{job="app",uri!~"/actuator.*"}[5m])) >= 20)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Application p95 latency exceeds 2 seconds
+          description: 'At least 20 user requests in 5 minutes; inspect Hikari saturation, PostgreSQL locks and slow queries.'

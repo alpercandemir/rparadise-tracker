@@ -23,7 +23,6 @@ import org.springframework.core.env.Environment;
 
 import java.net.URI;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -40,6 +39,7 @@ class RecordsPostgresTest {
     @Autowired SongService service;
     @Autowired TransactionTemplate transactions;
     @Autowired Environment environment;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @MockitoBean SongTrackerScheduler scheduler;
     RestClient http = RestClient.create();
 
@@ -173,6 +173,9 @@ class RecordsPostgresTest {
         service.saveOrUpdateSong(a, "1");
         assertThat(plays.count()).isEqualTo(4);
         assertThat(songs.findById(first.getId()).orElseThrow().getPlayCount()).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM (SELECT s.id FROM song s JOIN playback_event p ON p.song_id=s.id GROUP BY s.id HAVING s.first_played <> min(p.observed_at) OR s.last_played <> max(p.observed_at) OR s.play_count <> count(*)) mismatches", Long.class)).isZero();
+        assertThat(jdbc.queryForList("SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND ((table_name='song' AND column_name IN ('first_played','last_played')) OR (table_name='playback_event' AND column_name='observed_at'))", String.class))
+                .containsExactlyInAnyOrder("timestamp with time zone", "timestamp with time zone", "timestamp with time zone");
     }
 
     @Test
@@ -187,8 +190,8 @@ class RecordsPostgresTest {
 
     private Song song(String title, String channel) {
         return Song.builder().title(title).artist("Artist").album("Album").year("2026")
-                .channel(channel).firstPlayed(LocalDateTime.of(2026, 11, 1, 12, 0))
-                .lastPlayed(LocalDateTime.of(2026, 11, 1, 12, 0)).playCount(1).build();
+                .channel(channel).firstPlayed(Instant.parse("2026-11-01T09:00:00Z"))
+                .lastPlayed(Instant.parse("2026-11-01T09:00:00Z")).playCount(1).build();
     }
 
     private RadioParadiseResponse response(String title) {

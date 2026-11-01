@@ -25,5 +25,6 @@ replay_pid*
 .env.*
 !.env.example
 !.env.*.example
+.secrets/
 
 # Keep Maven wrapper scripts and .mvn/wrapper/ configuration in Git.

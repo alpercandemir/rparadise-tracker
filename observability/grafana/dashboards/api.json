@@ -1,0 +1,970 @@
+{
+  "uid": "radioparadise-api",
+  "title": "Radio Paradise \u00b7 API & Upstream",
+  "description": "Inbound application API and outbound RP HTTP RED metrics. URI templates bound cardinality. HTTP client duration includes response extraction; collector metrics additionally include persistence. No per-request tracing or payload recording.",
+  "tags": [
+    "radioparadise",
+    "operations"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "editable": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Internal API \u00b7 traffic, errors and latency",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 2,
+      "title": "API requests / second",
+      "description": "",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"app\",uri=~\"$endpoint\",uri=~\"/api/.*\"}[$__rate_interval]))",
+          "legendFormat": "Requests"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "title": "API 5xx ratio",
+      "description": "No data until the API receives traffic. Low volume can make percentiles and ratios noisy.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(100 * sum(rate(http_server_requests_seconds_count{job=\"app\",uri=~\"$endpoint\",uri=~\"/api/.*\",status=~\"5..\"}[$__rate_interval])) or (0 * sum(rate(http_server_requests_seconds_count{job=\"app\",uri=~\"$endpoint\",uri=~\"/api/.*\"}[$__rate_interval])))) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"app\",uri=~\"$endpoint\",uri=~\"/api/.*\"}[$__rate_interval])), 1e-9)",
+          "legendFormat": "5xx"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "title": "API p95 latency",
+      "description": "",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by(le) (rate(http_server_requests_seconds_bucket{job=\"app\",uri=~\"$endpoint\",uri=~\"/api/.*\"}[$__rate_interval])))",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Traffic by API endpoint",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(method,uri) (rate(http_server_requests_seconds_count{job=\"app\",uri=~\"$endpoint\",uri=~\"/api/.*\"}[$__rate_interval]))",
+          "legendFormat": "{{method}} {{uri}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Responses by HTTP status",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 6,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(status) (rate(http_server_requests_seconds_count{job=\"app\",uri=~\"$endpoint\",uri=~\"/api/.*\"}[$__rate_interval]))",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "p95 / p99 by endpoint",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 6,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by(le,uri) (rate(http_server_requests_seconds_bucket{job=\"app\",uri=~\"$endpoint\",uri=~\"/api/.*\"}[$__rate_interval])))",
+          "legendFormat": "p95 {{uri}}"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.99, sum by(le,uri) (rate(http_server_requests_seconds_bucket{job=\"app\",uri=~\"$endpoint\",uri=~\"/api/.*\"}[$__rate_interval])))",
+          "legendFormat": "p99 {{uri}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Mean latency by endpoint",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(uri) (rate(http_server_requests_seconds_sum{job=\"app\",uri=~\"$endpoint\",uri=~\"/api/.*\"}[$__rate_interval])) / clamp_min(sum by(uri) (rate(http_server_requests_seconds_count{job=\"app\",uri=~\"$endpoint\",uri=~\"/api/.*\"}[$__rate_interval])), 1e-9)",
+          "legendFormat": "{{uri}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Requests in selected time range",
+      "description": "Prometheus increase is an estimate and may include fractional counts.",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 14,
+        "w": 16,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(method,uri,status) (increase(http_server_requests_seconds_count{job=\"app\",uri=~\"$endpoint\",uri=~\"/api/.*\"}[$__range]))",
+          "legendFormat": "{{method}} {{uri}} {{status}}",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "title": "Radio Paradise REST client \u00b7 dependency health",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 11,
+      "title": "RP calls / second",
+      "description": "",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_client_requests_seconds_count{job=\"app\",client_name=~\"$upstream\"}[$__rate_interval]))",
+          "legendFormat": "Calls"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 12,
+      "title": "RP unsuccessful calls",
+      "description": "Includes non-2xx and transport failures. JSON/persistence failures also appear in collector outcomes below.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 23,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(100 * sum(rate(http_client_requests_seconds_count{job=\"app\",client_name=~\"$upstream\",outcome!=\"SUCCESS\"}[$__rate_interval])) or (0 * sum(rate(http_client_requests_seconds_count{job=\"app\",client_name=~\"$upstream\"}[$__rate_interval])))) / clamp_min(sum(rate(http_client_requests_seconds_count{job=\"app\",client_name=~\"$upstream\"}[$__rate_interval])), 1e-9)",
+          "legendFormat": "Errors"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 13,
+      "title": "RP p95 latency",
+      "description": "",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 23,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95,sum by(le) (rate(http_client_requests_seconds_bucket{job=\"app\",client_name=~\"$upstream\"}[$__rate_interval])))",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 14,
+      "title": "RP HTTP status / transport failures",
+      "description": "CLIENT_ERROR / IO_ERROR indicate no HTTP response; numeric status codes come from RP.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(client_name,status) (rate(http_client_requests_seconds_count{job=\"app\",client_name=~\"$upstream\"}[$__rate_interval]))",
+          "legendFormat": "{{client_name}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "RP mean, p95 and p99 latency",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 28,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_client_requests_seconds_sum{job=\"app\",client_name=~\"$upstream\"}[$__rate_interval])) / clamp_min(sum(rate(http_client_requests_seconds_count{job=\"app\",client_name=~\"$upstream\"}[$__rate_interval])),1e-9)",
+          "legendFormat": "Mean"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95,sum by(le) (rate(http_client_requests_seconds_bucket{job=\"app\",client_name=~\"$upstream\"}[$__rate_interval])))",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "C",
+          "expr": "histogram_quantile(0.99,sum by(le) (rate(http_client_requests_seconds_bucket{job=\"app\",client_name=~\"$upstream\"}[$__rate_interval])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 16,
+      "title": "RP error type",
+      "description": "An empty graph means no matching error series has been emitted.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 28,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(exception,status) (rate(http_client_requests_seconds_count{job=\"app\",client_name=~\"$upstream\",outcome!=\"SUCCESS\"}[$__rate_interval]))",
+          "legendFormat": "{{exception}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "title": "RP calls by route in selected range",
+      "description": "",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 16,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(client_name,method,uri,status) (increase(http_client_requests_seconds_count{job=\"app\",client_name=~\"$upstream\"}[$__range]))",
+          "legendFormat": "{{method}} {{uri}} {{status}}",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 18,
+      "title": "Collector freshness per channel",
+      "description": "A zero last-success timestamp means the channel has never succeeded.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 36,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - radioparadise_collector_last_success_timestamp_seconds{job=\"app\"} > 0",
+          "legendFormat": "Channel {{channel}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 19,
+      "title": "Collector and application context",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 44,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 20,
+      "title": "Collector polls by channel and outcome",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 45,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(channel,outcome) (rate(radioparadise_collector_polls_total{job=\"app\"}[$__rate_interval]))",
+          "legendFormat": "Channel {{channel}} {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 21,
+      "title": "Complete poll mean duration",
+      "description": "Includes RP request, decoding and persistence. Compare with client latency to locate database overhead.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 45,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(channel,outcome) (rate(radioparadise_collector_poll_duration_seconds_sum{job=\"app\"}[$__rate_interval])) / clamp_min(sum by(channel,outcome) (rate(radioparadise_collector_poll_duration_seconds_count{job=\"app\"}[$__rate_interval])),1e-9)",
+          "legendFormat": "Channel {{channel}} {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "title": "Database pool waiting / active",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 45,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "hikaricp_connections_pending{job=\"app\"}",
+          "legendFormat": "Waiting"
+        },
+        {
+          "refId": "B",
+          "expr": "hikaricp_connections_active{job=\"app\"}",
+          "legendFormat": "Active"
+        },
+        {
+          "refId": "C",
+          "expr": "hikaricp_connections_max{job=\"app\"}",
+          "legendFormat": "Maximum"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "endpoint",
+        "label": "API endpoint",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(http_server_requests_seconds_count{job=\"app\",uri=~\"/api/.*\"}, uri)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "upstream",
+        "label": "RP host",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(http_client_requests_seconds_count{job=\"app\"}, client_name)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Overview",
+      "type": "link",
+      "url": "/grafana/d/radioparadise-ops",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "API & RP",
+      "type": "link",
+      "url": "/grafana/d/radioparadise-api",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Oracle VM",
+      "type": "link",
+      "url": "/grafana/d/radioparadise-vm",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Application logs",
+      "type": "link",
+      "url": "/grafana/d/radioparadise-logs",
+      "keepTime": true,
+      "targetBlank": false
+    }
+  ]
+}

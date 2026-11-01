@@ -6,7 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 @Entity
 @Table(name = "song", uniqueConstraints = @UniqueConstraint(columnNames = { "artist", "title", "album", "channel" }))
@@ -39,10 +40,10 @@ public class Song {
     private String coverUrl;
 
     @Column(name = "first_played", nullable = false)
-    private LocalDateTime firstPlayed;
+    private Instant firstPlayed;
 
     @Column(name = "last_played", nullable = false)
-    private LocalDateTime lastPlayed;
+    private Instant lastPlayed;
 
     @Column(name = "play_count", nullable = false)
     @Builder.Default
@@ -51,10 +52,10 @@ public class Song {
     @PrePersist
     protected void onCreate() {
         if (firstPlayed == null) {
-            firstPlayed = LocalDateTime.now();
+            firstPlayed = Instant.now().truncatedTo(ChronoUnit.MICROS);
         }
         if (lastPlayed == null) {
-            lastPlayed = LocalDateTime.now();
+            lastPlayed = firstPlayed;
         }
         if (playCount == null) {
             playCount = 1;

@@ -34,13 +34,15 @@ class PlaybackRecordingTest {
     @Test
     void firstObservationWritesMetadataAndAPlayWithAnAbsoluteTimestamp() {
         when(songs.save(any(Song.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        Instant before = Instant.now();
+        Instant before = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
         Song song = service.saveOrUpdateSong(response("Track A"), "1");
         ArgumentCaptor<PlaybackEvent> event = ArgumentCaptor.forClass(PlaybackEvent.class);
         verify(plays).save(event.capture());
         assertThat(event.getValue().getSong()).isSameAs(song);
         assertThat(event.getValue().getChannel()).isEqualTo("1");
         assertThat(event.getValue().getObservedAt()).isBetween(before, Instant.now());
+        assertThat(song.getFirstPlayed()).isEqualTo(event.getValue().getObservedAt());
+        assertThat(song.getLastPlayed()).isEqualTo(event.getValue().getObservedAt());
         assertThat(song.getTitle()).isEqualTo("Track A");
         assertThat(song.getPlayCount()).isEqualTo(1);
     }
@@ -70,7 +72,9 @@ class PlaybackRecordingTest {
                 .thenReturn(Optional.of(existing));
         when(songs.save(existing)).thenReturn(existing);
         assertThat(service.saveOrUpdateSong(response("Track A"), "2").getPlayCount()).isEqualTo(3);
-        verify(plays).save(any(PlaybackEvent.class));
+        ArgumentCaptor<PlaybackEvent> event = ArgumentCaptor.forClass(PlaybackEvent.class);
+        verify(plays).save(event.capture());
+        assertThat(existing.getLastPlayed()).isEqualTo(event.getValue().getObservedAt());
     }
 
     @Test

@@ -1,0 +1,205 @@
+{
+  "uid": "radioparadise-logs",
+  "title": "Radio Paradise Application Logs",
+  "description": "Application INFO/WARN/ERROR and any emitted DEBUG/TRACE logs. All includes unclassified startup lines. Retention 7 days; up to 2000 entries per panel, narrow the time window for more. New Java stack traces are grouped (up to 256 lines / 3s).",
+  "tags": [
+    "radioparadise",
+    "logs"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "editable": false,
+  "templating": {
+    "list": [
+      {
+        "name": "level",
+        "label": "Log level",
+        "type": "custom",
+        "query": "TRACE,DEBUG,INFO,WARN,ERROR,FATAL",
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": []
+      },
+      {
+        "name": "search",
+        "label": "Search text (case sensitive)",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Reading this screen",
+      "type": "text",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Choose a **log level**, search text, and time range above. **All** includes startup lines and exception details. Expand an entry to inspect labels and its complete stack trace. DEBUG/TRACE appear only when enabled in the application. The panel shows at most 2,000 entries: narrow the time range to inspect a busy period. For live tail, open **Explore \u2192 Loki**, query `{service=\"app\"}`, and select **Live**. Existing logs are retained for 7 days."
+      }
+    },
+    {
+      "id": 2,
+      "title": "Log entries by severity",
+      "type": "timeseries",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 24,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(severity) (count_over_time({job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"${level:regex}\" |= \"${search}\"[$__auto]))",
+          "queryType": "range",
+          "maxLines": 2000,
+          "legendFormat": "{{severity}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "Application logs \u2014 newest first",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"${level:regex}\" |= \"${search}\"",
+          "queryType": "range",
+          "maxLines": 2000,
+          "legendFormat": "{{severity}}"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "Warnings and errors",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 24,
+        "h": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"docker\",service=\"app\"} | regexp \"(?s)^[^\\\\n]*?\\\\s(?P<severity>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\\\s\" | severity=~\"WARN|ERROR|FATAL\" |= \"${search}\"",
+          "queryType": "range",
+          "maxLines": 2000,
+          "legendFormat": "{{severity}}"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ],
+  "links": [
+    {
+      "title": "Overview",
+      "type": "link",
+      "url": "/grafana/d/radioparadise-ops",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "API & RP",
+      "type": "link",
+      "url": "/grafana/d/radioparadise-api",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Oracle VM",
+      "type": "link",
+      "url": "/grafana/d/radioparadise-vm",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Application logs",
+      "type": "link",
+      "url": "/grafana/d/radioparadise-logs",
+      "keepTime": true,
+      "targetBlank": false
+    }
+  ]
+}

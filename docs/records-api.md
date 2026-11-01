@@ -65,18 +65,28 @@ The UI converts them to the browser's timezone, includes seconds, and shows the
 detected timezone name. Date filters use that same timezone and respect its
 daylight-saving transitions (calendar days can be 23 or 25 hours).
 
-Storage: playback events use `Instant`/PostgreSQL `timestamp with time zone`.
-The legacy Song `first_played`/`last_played` columns still contain Istanbul wall
-time (`LocalDateTime`/`timestamp without time zone`). The API interprets those
-values in `Europe/Istanbul` and converts to UTC, preserving their actual instant;
-it does not relabel the stored wall time as UTC or perform a schema migration.
+## Storage and migration
+
+Both song timestamps and playback events use `Instant`/PostgreSQL
+`timestamp with time zone`. Each new play uses one shared timestamp with
+microsecond precision. Song first/last/count summarize the stored events.
+
+Before upgrading an existing installation, stop the collector and back up the
+database. Run `scripts/migrations/2026-11-01-unify-playback-times.sql` using
+`psql -v ON_ERROR_STOP=1` before starting the new application. It explicitly
+interprets legacy wall times in `Europe/Istanbul`, preserves every event, and
+rebuilds song summaries from the actual history. It aborts on unrelated songs
+instead of discarding them. The migration is safe to rerun. Do not rely on
+Hibernate's automatic column conversion for this upgrade.
 
 `playedAt` means first observed by the tracker, whose normal polling interval is
 30 seconds; it is not an exact broadcaster start time. Downtime may leave gaps.
 An ongoing track is deduplicated across application restarts via its latest
 persisted channel event. Full replays during downtime cannot be inferred when
-the same track is still current after recovery. Existing track counts include
-older observations and need not equal the newly collected event count.
+the same track is still current after recovery. Each song's count equals its
+stored playback event count; first/last timestamps equal the earliest/latest
+event for that song. The migration drops legacy summary-only counts and dates
+that have no corresponding event, while preserving the event history itself.
 
 The original `/api/songs`, `/api/songs/recent`, `/api/songs/most-played`, and
 `/api/songs/channel/{channelId}` endpoints remain compatible.

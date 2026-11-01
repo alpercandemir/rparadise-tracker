@@ -16,6 +16,9 @@ services:
   postgres:
     image: postgres:17
     restart: unless-stopped
+    # Host loopback only; remote clients connect through an SSH tunnel.
+    ports:
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: radioparadise
       POSTGRES_USER: ${DB_USERNAME:-radioparadise}

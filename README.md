@@ -41,7 +41,7 @@ The stack contains:
 
 Only Caddy publishes ports. PostgreSQL and Spring Boot are accessed over the internal Docker network. Defaults bind the website to localhost. Configuration overrides can be placed in a local `.env` file, starting from `.env.example`.
 
-`APP_TIMEZONE` defaults to `Europe/Istanbul`, matching the current development data. Song timestamps do not carry a timezone: keep the same application timezone when reusing a database and when alternating Docker and host development. For host development, set `TZ` to the same value before starting Maven.
+`APP_TIMEZONE` defaults to `Europe/Istanbul` for application logs. Song and playback timestamps use absolute instants stored as PostgreSQL `timestamp with time zone`; the API returns UTC and the UI displays the browser's timezone. Existing databases with timezone-less song columns require the [timestamp migration](docs/records-api.md#storage-and-migration) before starting the updated application.
 
 ```bash
 docker compose ps

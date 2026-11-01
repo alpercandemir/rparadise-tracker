@@ -1,11 +1,15 @@
 package com.radioparadise.tracker.client;
 
 import com.radioparadise.tracker.dto.RadioParadiseResponse;
+import io.micrometer.observation.ObservationRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.Optional;
 
 @Component
@@ -14,9 +18,17 @@ public class RadioParadiseClient {
 
     private final RestClient restClient;
 
-    public RadioParadiseClient(@Value("${radioparadise.api.base-url}") String baseUrl) {
+    public RadioParadiseClient(@Value("${radioparadise.api.base-url}") String baseUrl,
+                               ObservationRegistry observationRegistry) {
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(Duration.ofSeconds(15));
         this.restClient = RestClient.builder()
+                .observationRegistry(observationRegistry)
                 .baseUrl(baseUrl)
+                .requestFactory(requestFactory)
                 .build();
     }
 
@@ -34,7 +46,7 @@ public class RadioParadiseClient {
                 return Optional.empty();
             }
 
-            log.info("Current song on channel {}: {} - {} ({})",
+            log.debug("Current song on channel {}: {} - {} ({})",
                     channel,
                     response.getArtist(),
                     response.getTitle(),

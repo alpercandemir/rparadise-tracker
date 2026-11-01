@@ -1,0 +1,1296 @@
+{
+  "uid": "radioparadise-vm",
+  "title": "Radio Paradise \u00b7 Oracle VM",
+  "description": "Whole VM Linux metrics from node exporter in host PID/network namespaces. Capacity and pressure include all services. No per-container CPU/RAM accounting. Same-VM monitoring cannot detect total host loss externally.",
+  "tags": [
+    "radioparadise",
+    "operations"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "editable": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Capacity at a glance",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 2,
+      "title": "VM uptime",
+      "description": "",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - node_boot_time_seconds{job=\"node\"}",
+          "legendFormat": "Uptime"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Logical CPUs",
+      "description": "",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 1,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(node_cpu_seconds_total{job=\"node\",mode=\"idle\"})",
+          "legendFormat": "CPUs"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Available RAM",
+      "description": "",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_MemAvailable_bytes{job=\"node\"}",
+          "legendFormat": "Available"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Root disk available",
+      "description": "",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 1,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_filesystem_avail_bytes{job=\"node\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"}",
+          "legendFormat": "Available"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 6,
+      "title": "CPU \u00b7 scheduling and virtualization",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 7,
+      "title": "CPU busy by mode",
+      "description": "Steal indicates hypervisor contention; iowait indicates tasks waiting for I/O.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * avg by(mode) (rate(node_cpu_seconds_total{job=\"node\",mode!=\"idle\"}[$__rate_interval]))",
+          "legendFormat": "{{mode}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Load normalized by CPU count",
+      "description": "Sustained values above 1 indicate more runnable/I/O-wait tasks than logical CPUs.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 7,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_load1{job=\"node\"} / on(instance) group_left count by(instance) (node_cpu_seconds_total{job=\"node\",mode=\"idle\"})",
+          "legendFormat": "1 min"
+        },
+        {
+          "refId": "B",
+          "expr": "node_load5{job=\"node\"} / on(instance) group_left count by(instance) (node_cpu_seconds_total{job=\"node\",mode=\"idle\"})",
+          "legendFormat": "5 min"
+        },
+        {
+          "refId": "C",
+          "expr": "node_load15{job=\"node\"} / on(instance) group_left count by(instance) (node_cpu_seconds_total{job=\"node\",mode=\"idle\"})",
+          "legendFormat": "15 min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Runnable / blocked tasks",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 7,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_procs_running{job=\"node\"}",
+          "legendFormat": "Running"
+        },
+        {
+          "refId": "B",
+          "expr": "node_procs_blocked{job=\"node\"}",
+          "legendFormat": "Blocked"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Memory \u00b7 availability and pressure",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 11,
+      "title": "RAM used / available / total",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_MemTotal_bytes{job=\"node\"} - node_memory_MemAvailable_bytes{job=\"node\"}",
+          "legendFormat": "Used (excludes reclaimable memory)"
+        },
+        {
+          "refId": "B",
+          "expr": "node_memory_MemAvailable_bytes{job=\"node\"}",
+          "legendFormat": "Available"
+        },
+        {
+          "refId": "C",
+          "expr": "node_memory_MemTotal_bytes{job=\"node\"}",
+          "legendFormat": "Total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "RAM utilization",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 16,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1-node_memory_MemAvailable_bytes{job=\"node\"}/node_memory_MemTotal_bytes{job=\"node\"})",
+          "legendFormat": "Used"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "Swap used / total",
+      "description": "Both zero is normal: this VM has no configured swap.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 16,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_SwapTotal_bytes{job=\"node\"} - node_memory_SwapFree_bytes{job=\"node\"}",
+          "legendFormat": "Used"
+        },
+        {
+          "refId": "B",
+          "expr": "node_memory_SwapTotal_bytes{job=\"node\"}",
+          "legendFormat": "Total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Pressure stall time",
+      "description": "Percent of wall-clock time tasks were stalled, not resource utilization. Kernel PSI support required.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * rate(node_pressure_cpu_waiting_seconds_total{job=\"node\"}[$__rate_interval])",
+          "legendFormat": "CPU waiting"
+        },
+        {
+          "refId": "B",
+          "expr": "100 * rate(node_pressure_memory_waiting_seconds_total{job=\"node\"}[$__rate_interval])",
+          "legendFormat": "Memory some"
+        },
+        {
+          "refId": "C",
+          "expr": "100 * rate(node_pressure_memory_stalled_seconds_total{job=\"node\"}[$__rate_interval])",
+          "legendFormat": "Memory full"
+        },
+        {
+          "refId": "D",
+          "expr": "100 * rate(node_pressure_io_waiting_seconds_total{job=\"node\"}[$__rate_interval])",
+          "legendFormat": "I/O some"
+        },
+        {
+          "refId": "E",
+          "expr": "100 * rate(node_pressure_io_stalled_seconds_total{job=\"node\"}[$__rate_interval])",
+          "legendFormat": "I/O full"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "OOM kills in selected range",
+      "description": "",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 24,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "increase(node_vmstat_oom_kill{job=\"node\"}[$__range])",
+          "legendFormat": "OOM kills"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 16,
+      "title": "Major faults / second",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 24,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(node_vmstat_pgmajfault{job=\"node\"}[$__rate_interval])",
+          "legendFormat": "Major faults"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "title": "Storage \u00b7 capacity, inodes and physical disk I/O",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 18,
+      "title": "Root disk used",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1-node_filesystem_avail_bytes{job=\"node\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"}/node_filesystem_size_bytes{job=\"node\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"})",
+          "legendFormat": "Used"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 19,
+      "title": "Root inode utilization",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 33,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1-node_filesystem_files_free{job=\"node\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"}/node_filesystem_files{job=\"node\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"})",
+          "legendFormat": "Inodes used"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 20,
+      "title": "Physical disk utilization",
+      "description": "Time with I/O outstanding; does not directly measure cloud volume throughput limits.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 33,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * rate(node_disk_io_time_seconds_total{job=\"node\",device=~\"(sd[a-z]+|vd[a-z]+|nvme[0-9]+n[0-9]+)\"}[$__rate_interval])",
+          "legendFormat": "{{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 21,
+      "title": "Disk throughput",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 41,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(node_disk_read_bytes_total{job=\"node\",device=~\"(sd[a-z]+|vd[a-z]+|nvme[0-9]+n[0-9]+)\"}[$__rate_interval])",
+          "legendFormat": "Read {{device}}"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(node_disk_written_bytes_total{job=\"node\",device=~\"(sd[a-z]+|vd[a-z]+|nvme[0-9]+n[0-9]+)\"}[$__rate_interval])",
+          "legendFormat": "Write {{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "title": "Disk operations",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 41,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(node_disk_reads_completed_total{job=\"node\",device=~\"(sd[a-z]+|vd[a-z]+|nvme[0-9]+n[0-9]+)\"}[$__rate_interval])",
+          "legendFormat": "Read {{device}}"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(node_disk_writes_completed_total{job=\"node\",device=~\"(sd[a-z]+|vd[a-z]+|nvme[0-9]+n[0-9]+)\"}[$__rate_interval])",
+          "legendFormat": "Write {{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "iops",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 23,
+      "title": "Mean disk operation latency",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 41,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(node_disk_read_time_seconds_total{job=\"node\",device=~\"(sd[a-z]+|vd[a-z]+|nvme[0-9]+n[0-9]+)\"}[$__rate_interval]) / clamp_min(rate(node_disk_reads_completed_total{job=\"node\",device=~\"(sd[a-z]+|vd[a-z]+|nvme[0-9]+n[0-9]+)\"}[$__rate_interval] ), 1e-9)",
+          "legendFormat": "Read {{device}}"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(node_disk_write_time_seconds_total{job=\"node\",device=~\"(sd[a-z]+|vd[a-z]+|nvme[0-9]+n[0-9]+)\"}[$__rate_interval]) / clamp_min(rate(node_disk_writes_completed_total{job=\"node\",device=~\"(sd[a-z]+|vd[a-z]+|nvme[0-9]+n[0-9]+)\"}[$__rate_interval] ), 1e-9)",
+          "legendFormat": "Write {{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 24,
+      "title": "Network \u00b7 physical VM interfaces",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 49,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 25,
+      "title": "VM network throughput",
+      "description": "Host network namespace; excludes loopback, Docker bridges and veth devices.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 50,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(node_network_receive_bytes_total{job=\"node\",device!~\"lo|veth.*|docker.*|br-.*\"}[$__rate_interval])",
+          "legendFormat": "Receive {{device}}"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(node_network_transmit_bytes_total{job=\"node\",device!~\"lo|veth.*|docker.*|br-.*\"}[$__rate_interval])",
+          "legendFormat": "Transmit {{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 26,
+      "title": "VM network errors / drops",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 50,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(node_network_receive_errs_total{job=\"node\",device!~\"lo|veth.*|docker.*|br-.*\"}[$__rate_interval])",
+          "legendFormat": "receive errs {{device}}"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(node_network_receive_drop_total{job=\"node\",device!~\"lo|veth.*|docker.*|br-.*\"}[$__rate_interval])",
+          "legendFormat": "receive drop {{device}}"
+        },
+        {
+          "refId": "C",
+          "expr": "rate(node_network_transmit_errs_total{job=\"node\",device!~\"lo|veth.*|docker.*|br-.*\"}[$__rate_interval])",
+          "legendFormat": "transmit errs {{device}}"
+        },
+        {
+          "refId": "D",
+          "expr": "rate(node_network_transmit_drop_total{job=\"node\",device!~\"lo|veth.*|docker.*|br-.*\"}[$__rate_interval])",
+          "legendFormat": "transmit drop {{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 27,
+      "title": "VM network bytes in selected range",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 50,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "increase(node_network_receive_bytes_total{job=\"node\",device!~\"lo|veth.*|docker.*|br-.*\"}[$__range])",
+          "legendFormat": "Received {{device}}"
+        },
+        {
+          "refId": "B",
+          "expr": "increase(node_network_transmit_bytes_total{job=\"node\",device!~\"lo|veth.*|docker.*|br-.*\"}[$__range])",
+          "legendFormat": "Sent {{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 28,
+      "title": "Monitoring and application footprint",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 58,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 29,
+      "title": "Exporter / monitoring target health",
+      "description": "1 means successful scrape; 0 means failed scrape. A VM outage stops this stack too.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 59,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up",
+          "legendFormat": "{{job}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 30,
+      "title": "JVM heap / non-heap",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 59,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(area) (jvm_memory_used_bytes{job=\"app\"})",
+          "legendFormat": "{{area}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 31,
+      "title": "App process CPU",
+      "description": "",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 59,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * process_cpu_usage{job=\"app\"}",
+          "legendFormat": "App CPU"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Overview",
+      "type": "link",
+      "url": "/grafana/d/radioparadise-ops",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "API & RP",
+      "type": "link",
+      "url": "/grafana/d/radioparadise-api",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Oracle VM",
+      "type": "link",
+      "url": "/grafana/d/radioparadise-vm",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Application logs",
+      "type": "link",
+      "url": "/grafana/d/radioparadise-logs",
+      "keepTime": true,
+      "targetBlank": false
+    }
+  ]
+}

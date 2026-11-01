@@ -7,6 +7,8 @@
 .aws
 .env
 .env.*
+.secrets
+observability
 **/.DS_Store
 **/node_modules
 **/dist

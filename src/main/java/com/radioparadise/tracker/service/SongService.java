@@ -11,9 +11,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.time.Instant;
-import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 
@@ -42,15 +41,16 @@ public class SongService {
             }
         }
 
+        Instant observedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
         Song song = songRepository.findByArtistAndTitleAndAlbumAndChannel(
                 response.getArtist(),
                 response.getTitle(),
                 response.getAlbum(),
                 channel)
-                .map(existingSong -> updateExistingSong(existingSong, channel))
-                .orElseGet(() -> createNewSong(response, channel));
+                .map(existingSong -> updateExistingSong(existingSong, channel, observedAt))
+                .orElseGet(() -> createNewSong(response, channel, observedAt));
         playbackEventRepository.save(PlaybackEvent.builder()
-                .song(song).channel(channel).observedAt(Instant.now()).build());
+                .song(song).channel(channel).observedAt(observedAt).build());
         return song;
     }
 
@@ -70,8 +70,8 @@ public class SongService {
         return songRepository.findByChannel(channel);
     }
 
-    private Song updateExistingSong(Song song, String channel) {
-        song.setLastPlayed(LocalDateTime.now(ZoneId.of("Europe/Istanbul")));
+    private Song updateExistingSong(Song song, String channel, Instant observedAt) {
+        song.setLastPlayed(observedAt);
         song.setPlayCount(song.getPlayCount() + 1);
 
         log.info("Updated existing song on channel {}: {} - {} (play count: {})",
@@ -80,8 +80,7 @@ public class SongService {
         return songRepository.save(song);
     }
 
-    private Song createNewSong(RadioParadiseResponse response, String channel) {
-        LocalDateTime now = LocalDateTime.now(ZoneId.of("Europe/Istanbul"));
+    private Song createNewSong(RadioParadiseResponse response, String channel, Instant observedAt) {
         Song newSong = Song.builder()
                 .channel(channel)
                 .artist(response.getArtist())
@@ -89,8 +88,8 @@ public class SongService {
                 .album(response.getAlbum())
                 .year(response.getYear())
                 .coverUrl(response.getCover())
-                .firstPlayed(now)
-                .lastPlayed(now)
+                .firstPlayed(observedAt)
+                .lastPlayed(observedAt)
                 .playCount(1)
                 .build();
 

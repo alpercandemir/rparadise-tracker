@@ -12,8 +12,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,11 +47,11 @@ class SongServiceTest {
                 "Artist", "Title", "Album", "mellow")).thenReturn(Optional.empty());
         Song persistedSong = Song.builder().id(42L).build();
         when(songRepository.save(any(Song.class))).thenReturn(persistedSong);
-        LocalDateTime beforeSave = LocalDateTime.now(ZoneId.of("Europe/Istanbul"));
+        Instant beforeSave = Instant.now().truncatedTo(ChronoUnit.MICROS);
 
         Song result = songService.saveOrUpdateSong(response, "mellow");
 
-        LocalDateTime afterSave = LocalDateTime.now(ZoneId.of("Europe/Istanbul"));
+        Instant afterSave = Instant.now();
         ArgumentCaptor<Song> captor = ArgumentCaptor.forClass(Song.class);
         verify(songRepository).save(captor.capture());
         Song newSong = captor.getValue();
@@ -70,7 +70,7 @@ class SongServiceTest {
 
     @Test
     void saveOrUpdateSongIncrementsExistingSongPlayCountAndUpdatesLastPlayed() {
-        LocalDateTime firstPlayed = LocalDateTime.of(2025, 1, 1, 12, 0);
+        Instant firstPlayed = Instant.parse("2025-01-01T09:00:00Z");
         Song existingSong = Song.builder()
                 .id(42L)
                 .channel("mellow")
@@ -80,18 +80,18 @@ class SongServiceTest {
                 .year("1999")
                 .coverUrl("https://example.com/original.jpg")
                 .firstPlayed(firstPlayed)
-                .lastPlayed(firstPlayed.plusDays(1))
+                .lastPlayed(firstPlayed.plusSeconds(86400))
                 .playCount(3)
                 .build();
         when(songRepository.findByArtistAndTitleAndAlbumAndChannel(
                 "Artist", "Title", "Album", "mellow")).thenReturn(Optional.of(existingSong));
         Song persistedSong = Song.builder().id(42L).build();
         when(songRepository.save(existingSong)).thenReturn(persistedSong);
-        LocalDateTime beforeSave = LocalDateTime.now(ZoneId.of("Europe/Istanbul"));
+        Instant beforeSave = Instant.now().truncatedTo(ChronoUnit.MICROS);
 
         Song result = songService.saveOrUpdateSong(response(), "mellow");
 
-        LocalDateTime afterSave = LocalDateTime.now(ZoneId.of("Europe/Istanbul"));
+        Instant afterSave = Instant.now();
         verify(songRepository).save(existingSong);
         assertThat(existingSong.getPlayCount()).isEqualTo(4);
         assertThat(existingSong.getLastPlayed()).isBetween(beforeSave, afterSave);
