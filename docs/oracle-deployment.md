@@ -80,13 +80,30 @@ ssh -i ~/.ssh/id_ed25519 ubuntu@138.2.168.194 \
 
 GitHub Actions now runs backend, PostgreSQL integration, frontend, and ARM64
 image checks for pull requests. After a successful merge to `main`, it publishes
-the commit image to GHCR and deploys it over SSH. The deploy job uses the
-`ORACLE_SSH_KEY` repository secret and pins the VM SSH host key. It retains the
+the commit image to GHCR and requests production deployment approval from
+`alpercandemir`. Approve the pending job using **Review deployments** in the
+Actions run. The deploy job uses the `ORACLE_SSH_KEY` secret stored only in the
+protected `production` environment and pins the VM SSH host key. It retains the
 server `.env`, PostgreSQL volume, Caddy, and monitoring containers.
 
+The `production` environment permits only the `main` branch, requires
+`alpercandemir` as its reviewer, and disables administrator bypass. Deployment
+self-review stays enabled so the sole maintainer can approve their own releases.
+Fork pull request workflows require approval from a repository writer. Automatic
+deployments accept only successful CI triggered by a push to this repository's
+`main` branch; pull request CI cannot trigger a deployment.
+
+`.github/CODEOWNERS` assigns all files to `alpercandemir`. The `main` ruleset
+requires one code-owner approval and dismisses stale approvals. Administrators
+can bypass this review rule only through a pull request, allowing the sole owner
+to merge their own PRs. The existing branch protection still requires a pull
+request and passing, up-to-date `ci` checks, including for administrators.
+
 To redeploy or roll back, open the Deploy workflow's **Run workflow** form and
-provide the commit SHA to deploy. Confirm that any database migration is
-compatible before rolling back the application image.
+select the `main` workflow branch and provide the full 40-character commit SHA
+to deploy. The SHA must belong to `main` history. Manual deployments and
+rollbacks require the same production approval. Confirm that any database
+migration is compatible before rolling back the application image.
 
 ## Data and free-tier limits
 
