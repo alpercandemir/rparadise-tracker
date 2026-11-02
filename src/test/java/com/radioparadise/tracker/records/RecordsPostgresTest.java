@@ -66,6 +66,21 @@ class RecordsPostgresTest {
     }
 
     @Test
+    void schemaSetupCreatesValidIndexesForGlobalAndChannelRecency() {
+        var definitions = jdbc.queryForList(
+                "SELECT pg_get_indexdef(i.indexrelid) FROM pg_index i "
+                        + "JOIN pg_class c ON c.oid = i.indexrelid "
+                        + "WHERE i.indrelid = 'song'::regclass AND i.indisvalid AND i.indisready "
+                        + "AND c.relname IN ('song_last_played_id_idx', 'song_channel_last_played_id_idx') "
+                        + "ORDER BY c.relname",
+                String.class);
+
+        assertThat(definitions).containsExactly(
+                "CREATE INDEX song_channel_last_played_id_idx ON public.song USING btree (channel, last_played DESC, id DESC)",
+                "CREATE INDEX song_last_played_id_idx ON public.song USING btree (last_played DESC, id DESC)");
+    }
+
+    @Test
     void detailsArePersistedAndApiCachesUseSnapshots() {
         Song song = songs.save(song("Details", "1"));
         org.mockito.Mockito.when(lyricsClient.find(null, "Artist", "Details", "Album", "1"))
