@@ -1,6 +1,14 @@
 package com.radioparadise.tracker.model;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -11,7 +19,12 @@ import java.time.temporal.ChronoUnit;
 
 @Entity
 @org.hibernate.annotations.DynamicUpdate
-@Table(name = "song", uniqueConstraints = @UniqueConstraint(columnNames = { "artist", "title", "album", "channel" }))
+@Table(name = "song",
+        uniqueConstraints = @UniqueConstraint(columnNames = { "artist", "title", "album", "channel" }),
+        indexes = {
+                @Index(name = "song_last_played_id_idx", columnList = "last_played DESC, id DESC"),
+                @Index(name = "song_channel_last_played_id_idx", columnList = "channel, last_played DESC, id DESC")
+        })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

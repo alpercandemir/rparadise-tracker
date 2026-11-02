@@ -79,6 +79,29 @@ rebuilds song summaries from the actual history. It aborts on unrelated songs
 instead of discarding them. The migration is safe to rerun. Do not rely on
 Hibernate's automatic column conversion for this upgrade.
 
+For an existing database, apply
+`scripts/migrations/2026-11-02-add-song-recency-indexes.sql` with
+`psql -X -v ON_ERROR_STOP=1` before deploying the song recency index annotations.
+Run it with autocommit enabled, without `--single-transaction` or a surrounding
+transaction. It builds the global and channel-specific last-played indexes
+concurrently while the collector remains running. New databases receive the same
+indexes through the `Song` mapping.
+
+After running the script, verify that both indexes are valid and ready:
+
+```sql
+SELECT c.relname, i.indisvalid, i.indisready, pg_get_indexdef(i.indexrelid)
+FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+WHERE i.indrelid = 'song'::regclass
+  AND c.relname IN ('song_last_played_id_idx', 'song_channel_last_played_id_idx');
+```
+
+Both rows must have `indisvalid` and `indisready` set to true and the expected
+column order. The script can be rerun after a successful build. If a failed
+concurrent build leaves an invalid index, `IF NOT EXISTS` will skip it; inspect
+the failure and remove that invalid index with `DROP INDEX CONCURRENTLY` before
+retrying. See the [index review](database-index-review.md) for the query analysis.
+
 `playedAt` means first observed by the tracker, whose normal polling interval is
 30 seconds; it is not an exact broadcaster start time. Downtime may leave gaps.
 An ongoing track is deduplicated across application restarts via its latest
