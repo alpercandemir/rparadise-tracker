@@ -87,6 +87,18 @@ class RecordsPostgresTest {
                         + "ORDER BY c.relname",
                 String.class);
         assertThat(searchIndexes).containsExactly("song_search_phonetic_idx", "song_search_trgm_idx");
+
+        String plan = transactions.execute(status -> {
+            jdbc.execute("SET LOCAL enable_seqscan = off");
+            jdbc.execute("SET LOCAL pg_trgm.strict_word_similarity_threshold = 0.4");
+            return String.join("\n", jdbc.queryForList(
+                    "EXPLAIN SELECT s.id FROM song s WHERE ("
+                            + "public.f_song_search_text(s.title, s.artist, s.album) LIKE public.f_unaccent('%pinnk%') ESCAPE '\\' "
+                            + "OR public.f_song_search_text(s.title, s.artist, s.album) operator(public.%>>) public.f_unaccent('Pinnk') "
+                            + "OR public.f_phonetic_codes(s.title, s.artist, s.album) && public.f_query_phonetic_codes('Pinnk'))",
+                    String.class));
+        });
+        assertThat(plan).contains("BitmapOr", "song_search_trgm_idx", "song_search_phonetic_idx");
     }
 
     @Test
@@ -366,6 +378,9 @@ class RecordsPostgresTest {
                 .extracting(row -> row.get("title"))
                 .containsExactlyInAnyOrder("Sheep", "Dogs");
         assertThat(items(get("/api/records/tracks?q=Pin+Floyd")))
+                .extracting(row -> row.get("title"))
+                .containsExactlyInAnyOrder("Sheep", "Dogs");
+        assertThat(items(get("/api/records/tracks?q=Pinnk+Flyd")))
                 .extracting(row -> row.get("title"))
                 .containsExactlyInAnyOrder("Sheep", "Dogs");
         assertThat(items(get("/api/records/tracks?q=Pink+Floyd+Sheep")))

@@ -73,15 +73,23 @@ AS $func$
         SELECT 1
         FROM pg_catalog.regexp_split_to_table(public.f_song_search_text($1, $2, $3), '[^a-z0-9]+') AS word
         WHERE pg_catalog.length(word) >= 3
+          AND pg_catalog.abs(pg_catalog.length(word) - pg_catalog.length(public.f_unaccent($4))) <= CASE
+              WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2
+              ELSE 1
+          END
+          AND public.levenshtein_less_equal(
+              word,
+              public.f_unaccent($4),
+              CASE WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2 ELSE 1 END
+          ) <= CASE
+              WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2
+              ELSE 1
+          END
           AND ARRAY[
               public.dmetaphone(word),
               public.dmetaphone_alt(word),
               public.soundex(word)
           ] && public.f_query_phonetic_codes($4)
-          AND public.levenshtein(word, public.f_unaccent($4)) <= CASE
-              WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2
-              ELSE 1
-          END
     )
 $func$;
 
@@ -90,10 +98,13 @@ CREATE OR REPLACE FUNCTION public.f_song_fuzzy_match(text, text, text, text)
     LANGUAGE sql
     IMMUTABLE PARALLEL SAFE
 AS $func$
-    SELECT public.strict_word_similarity(
-            public.f_unaccent($4),
-            public.f_song_search_text($1, $2, $3)
-        ) >= 0.40
+    SELECT (
+            public.f_song_search_text($1, $2, $3) operator(public.%>>) public.f_unaccent($4)
+            AND public.strict_word_similarity(
+                public.f_unaccent($4),
+                public.f_song_search_text($1, $2, $3)
+            ) >= 0.40
+        )
         OR (
             public.f_phonetic_codes($1, $2, $3) && public.f_query_phonetic_codes($4)
             AND public.f_phonetic_word_match($1, $2, $3, $4)
