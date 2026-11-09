@@ -12,6 +12,8 @@ Visit [Radio Paradise](https://radioparadise.com/) to listen to the original bro
 
 A Java 25 + Spring Boot application with a Vue 3 dashboard that continuously tracks songs on Radio Paradise's Main, Mellow, and Rock mixes, stores observed playback history, and exposes the data through a REST API.
 
+**Live app:** [Radio Paradise Tracker](https://rparadise.138.2.168.194.sslip.io/)
+
 ## Features
 
 - Polls Radio Paradise API on a fixed interval (every 30 seconds by default)
