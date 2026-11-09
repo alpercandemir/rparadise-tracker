@@ -39,7 +39,11 @@ AS $func$
         ARRAY[]::text[]
     )
     FROM pg_catalog.regexp_split_to_table(public.f_song_search_text($1, $2, $3), '[^a-z0-9]+') AS word,
-         LATERAL pg_catalog.unnest(ARRAY[public.dmetaphone(word), public.dmetaphone_alt(word)]) AS code
+         LATERAL pg_catalog.unnest(ARRAY[
+             public.dmetaphone(word),
+             public.dmetaphone_alt(word),
+             public.soundex(word)
+         ]) AS code
     WHERE pg_catalog.length(word) >= 3
 $func$;
 
@@ -54,7 +58,8 @@ AS $func$
     )
     FROM pg_catalog.unnest(ARRAY[
         public.dmetaphone(public.f_unaccent($1)),
-        public.dmetaphone_alt(public.f_unaccent($1))
+        public.dmetaphone_alt(public.f_unaccent($1)),
+        public.soundex(public.f_unaccent($1))
     ]) AS code
     WHERE pg_catalog.length(public.f_unaccent($1)) >= 3
 $func$;
@@ -68,7 +73,11 @@ AS $func$
         SELECT 1
         FROM pg_catalog.regexp_split_to_table(public.f_song_search_text($1, $2, $3), '[^a-z0-9]+') AS word
         WHERE pg_catalog.length(word) >= 3
-          AND ARRAY[public.dmetaphone(word), public.dmetaphone_alt(word)] && public.f_query_phonetic_codes($4)
+          AND ARRAY[
+              public.dmetaphone(word),
+              public.dmetaphone_alt(word),
+              public.soundex(word)
+          ] && public.f_query_phonetic_codes($4)
           AND public.levenshtein(word, public.f_unaccent($4)) <= CASE
               WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2
               ELSE 1
