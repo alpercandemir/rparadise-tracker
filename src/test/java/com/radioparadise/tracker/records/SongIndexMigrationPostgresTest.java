@@ -45,6 +45,43 @@ class SongIndexMigrationPostgresTest {
         }
     }
 
+    @Test
+    void fuzzySearchIndexMigrationCanRunTwiceWithoutChangingExistingSongs() throws Exception {
+        String url = System.getenv("DB_URL");
+        assertThat(url).endsWith("/records_test");
+        String migration = Files.readString(
+                Path.of("scripts/migrations/2026-11-09-add-song-fuzzy-search-indexes.sql"));
+
+        try (var connection = DriverManager.getConnection(
+                url, System.getenv("DB_USERNAME"), System.getenv("DB_PASSWORD"));
+                var statement = connection.createStatement()) {
+            statement.execute("CREATE SCHEMA song_fuzzy_index_migration_test");
+            statement.execute("SET search_path TO song_fuzzy_index_migration_test");
+            statement.execute("CREATE TABLE song (id bigint PRIMARY KEY, title varchar NOT NULL, "
+                    + "artist varchar NOT NULL, album varchar NOT NULL)");
+            statement.execute("INSERT INTO song VALUES (1, 'Sheep', 'Pink Floyd', 'Animals')");
+
+            for (int run = 0; run < 2; run++) {
+                applyMigration(statement, migration);
+                try (var indexes = statement.executeQuery(
+                        "SELECT c.relname, i.indisvalid, i.indisready "
+                                + "FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid "
+                                + "WHERE i.indrelid = 'song'::regclass AND NOT i.indisprimary "
+                                + "ORDER BY c.relname")) {
+                    assertThat(indexes.next()).isTrue();
+                    assertThat(indexes.getString("relname")).isEqualTo("song_search_phonetic_idx");
+                    assertThat(indexes.getBoolean("indisvalid")).isTrue();
+                    assertThat(indexes.getBoolean("indisready")).isTrue();
+                    assertThat(indexes.next()).isTrue();
+                    assertThat(indexes.getString("relname")).isEqualTo("song_search_trgm_idx");
+                    assertThat(indexes.getBoolean("indisvalid")).isTrue();
+                    assertThat(indexes.getBoolean("indisready")).isTrue();
+                    assertThat(indexes.next()).isFalse();
+                }
+            }
+        }
+    }
+
     private void applyMigration(Statement statement, String migration) throws Exception {
         for (String sql : migration.split(";")) {
             if (!sql.isBlank()) {

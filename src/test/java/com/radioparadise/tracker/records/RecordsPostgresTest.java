@@ -78,6 +78,15 @@ class RecordsPostgresTest {
         assertThat(definitions).containsExactly(
                 "CREATE INDEX song_channel_last_played_id_idx ON public.song USING btree (channel, last_played DESC, id DESC)",
                 "CREATE INDEX song_last_played_id_idx ON public.song USING btree (last_played DESC, id DESC)");
+
+        var searchIndexes = jdbc.queryForList(
+                "SELECT c.relname FROM pg_index i "
+                        + "JOIN pg_class c ON c.oid = i.indexrelid "
+                        + "WHERE i.indrelid = 'song'::regclass AND i.indisvalid AND i.indisready "
+                        + "AND c.relname IN ('song_search_trgm_idx', 'song_search_phonetic_idx') "
+                        + "ORDER BY c.relname",
+                String.class);
+        assertThat(searchIndexes).containsExactly("song_search_phonetic_idx", "song_search_trgm_idx");
     }
 
     @Test
@@ -328,14 +337,63 @@ class RecordsPostgresTest {
 
     @Test
     void searchAndChannelFilterCombineAndLikeWildcardsAreLiteral() {
+        Song sheep = song("Sheep", "1");
+        sheep.setArtist("Pink Floyd");
+        sheep.setAlbum("Animals");
+        Song dogs = song("Dogs", "1");
+        dogs.setArtist("Pink Floyd");
+        dogs.setAlbum("Animals");
+        Song mariah = song("Vision of Love", "1");
+        mariah.setArtist("Mariah Carey");
+        mariah.setAlbum("Mariah Carey");
+        Song sigur = song("Hoppípolla", "1");
+        sigur.setArtist("Sigur Rós");
+        sigur.setAlbum("Takk...");
+        Song philip = song("Opening", "1");
+        philip.setArtist("Philip Glass");
+        philip.setAlbum("Glassworks");
         songs.saveAll(List.of(song("100% Pure", "1"), song("100 Percent", "1"), song("100% Pure", "2"),
-                song("under_score", "1"), song("underXscore", "1")));
+                song("under_score", "1"), song("underXscore", "1"), sheep, dogs, mariah, sigur, philip));
+        plays.save(PlaybackEvent.builder().song(sheep).channel("1")
+                .observedAt(Instant.parse("2026-11-01T09:00:00Z")).build());
         List<Map<String, Object>> rows = items(get("/api/records/tracks?q=100%25&channel=1"));
         assertThat(rows).hasSize(1);
         assertThat(rows.getFirst().get("title")).isEqualTo("100% Pure");
         assertThat(rows.getFirst().get("channel")).isEqualTo("1");
         assertThat(items(get("/api/records/tracks?q=under_score"))).hasSize(1);
         assertThat(items(get("/api/records/tracks?q=ALBUM&channel=2"))).hasSize(1);
+        assertThat(items(get("/api/records/tracks?q=Pink+Floyd")))
+                .extracting(row -> row.get("title"))
+                .containsExactlyInAnyOrder("Sheep", "Dogs");
+        assertThat(items(get("/api/records/tracks?q=Pin+Floyd")))
+                .extracting(row -> row.get("title"))
+                .containsExactlyInAnyOrder("Sheep", "Dogs");
+        assertThat(items(get("/api/records/tracks?q=Pink+Floyd+Sheep")))
+                .extracting(row -> row.get("title"))
+                .containsExactly("Sheep");
+        assertThat(items(get("/api/records/tracks?q=Pin+Floyd+Shep")))
+                .extracting(row -> row.get("title"))
+                .containsExactly("Sheep");
+        assertThat(items(get("/api/records/tracks?q=Pnk+Flod+Shep")))
+                .extracting(row -> row.get("title"))
+                .containsExactly("Sheep");
+        assertThat(items(get("/api/records/tracks?q=Sheep+Animals+Floyd")))
+                .extracting(row -> row.get("title"))
+                .containsExactly("Sheep");
+        assertThat(items(get("/api/records/tracks?q=Mariacare")))
+                .extracting(row -> row.get("artist"))
+                .containsExactly("Mariah Carey");
+        assertThat(items(get("/api/records/tracks?q=Sigur+Ros+Hoppipolla")))
+                .extracting(row -> row.get("artist"))
+                .containsExactly("Sigur Rós");
+        assertThat(items(get("/api/records/tracks?q=Filip+Glas")))
+                .extracting(row -> row.get("artist"))
+                .containsExactly("Philip Glass");
+        assertThat(items(get("/api/records/tracks?q=CompletelyUnrelatedQuery"))).isEmpty();
+        assertThat(items(get("/api/records/tracks?q=Pink+Piano"))).isEmpty();
+        assertThat(items(get("/api/records/plays?q=Pin+Floyd+Shep")))
+                .extracting(row -> row.get("title"))
+                .containsExactly("Sheep");
     }
 
     @Test
