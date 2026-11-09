@@ -383,6 +383,9 @@ class RecordsPostgresTest {
         assertThat(items(get("/api/records/tracks?q=Pinnk+Flyd")))
                 .extracting(row -> row.get("title"))
                 .containsExactlyInAnyOrder("Sheep", "Dogs");
+        assertThat(items(get("/api/records/tracks?q=Oink+Floyd")))
+                .extracting(row -> row.get("title"))
+                .containsExactlyInAnyOrder("Sheep", "Dogs");
         assertThat(items(get("/api/records/tracks?q=Pink+Floyd+Sheep")))
                 .extracting(row -> row.get("title"))
                 .containsExactly("Sheep");

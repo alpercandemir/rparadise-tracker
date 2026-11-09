@@ -77,19 +77,27 @@ AS $func$
               WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2
               ELSE 1
           END
-          AND public.levenshtein_less_equal(
-              word,
-              public.f_unaccent($4),
-              CASE WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2 ELSE 1 END
-          ) <= CASE
-              WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2
-              ELSE 1
-          END
-          AND ARRAY[
-              public.dmetaphone(word),
-              public.dmetaphone_alt(word),
-              public.soundex(word)
-          ] && public.f_query_phonetic_codes($4)
+          AND (
+              (
+                  pg_catalog.length(public.f_unaccent($4)) >= 4
+                  AND public.levenshtein_less_equal(word, public.f_unaccent($4), 1) <= 1
+              )
+              OR (
+                  public.levenshtein_less_equal(
+                      word,
+                      public.f_unaccent($4),
+                      CASE WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2 ELSE 1 END
+                  ) <= CASE
+                      WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2
+                      ELSE 1
+                  END
+                  AND ARRAY[
+                      public.dmetaphone(word),
+                      public.dmetaphone_alt(word),
+                      public.soundex(word)
+                  ] && public.f_query_phonetic_codes($4)
+              )
+          )
     )
 $func$;
 
@@ -103,7 +111,7 @@ AS $func$
             AND public.strict_word_similarity(
                 public.f_unaccent($4),
                 public.f_song_search_text($1, $2, $3)
-            ) >= 0.40
+            ) >= 0.24
         )
         OR (
             public.f_phonetic_codes($1, $2, $3) && public.f_query_phonetic_codes($4)

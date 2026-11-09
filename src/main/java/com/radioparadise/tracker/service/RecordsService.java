@@ -11,6 +11,10 @@ import jakarta.annotation.PostConstruct;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -34,7 +38,7 @@ public class RecordsService {
             )
             AND (
                 public.f_song_search_text(s.title, s.artist, s.album) LIKE public.f_unaccent(?) ESCAPE '\\'
-                OR public.strict_word_similarity(public.f_unaccent(?), public.f_song_search_text(s.title, s.artist, s.album)) >= 0.40
+                OR public.strict_word_similarity(public.f_unaccent(?), public.f_song_search_text(s.title, s.artist, s.album)) >= 0.24
                 OR public.f_phonetic_word_match(s.title, s.artist, s.album, ?)
             )
             """;
@@ -119,19 +123,27 @@ public class RecordsService {
                                   WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2
                                   ELSE 1
                               END
-                              AND public.levenshtein_less_equal(
-                                  word,
-                                  public.f_unaccent($4),
-                                  CASE WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2 ELSE 1 END
-                              ) <= CASE
-                                  WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2
-                                  ELSE 1
-                              END
-                              AND ARRAY[
-                                  public.dmetaphone(word),
-                                  public.dmetaphone_alt(word),
-                                  public.soundex(word)
-                              ] && public.f_query_phonetic_codes($4)
+                              AND (
+                                  (
+                                      pg_catalog.length(public.f_unaccent($4)) >= 4
+                                      AND public.levenshtein_less_equal(word, public.f_unaccent($4), 1) <= 1
+                                  )
+                                  OR (
+                                      public.levenshtein_less_equal(
+                                          word,
+                                          public.f_unaccent($4),
+                                          CASE WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2 ELSE 1 END
+                                      ) <= CASE
+                                          WHEN pg_catalog.length(public.f_unaccent($4)) >= 5 THEN 2
+                                          ELSE 1
+                                      END
+                                      AND ARRAY[
+                                          public.dmetaphone(word),
+                                          public.dmetaphone_alt(word),
+                                          public.soundex(word)
+                                      ] && public.f_query_phonetic_codes($4)
+                                  )
+                              )
                         )
                     $func$
                     """,
@@ -146,7 +158,7 @@ public class RecordsService {
                                 AND public.strict_word_similarity(
                                     public.f_unaccent($4),
                                     public.f_song_search_text($1, $2, $3)
-                                ) >= 0.40
+                                ) >= 0.24
                             )
                             OR (
                                 public.f_phonetic_codes($1, $2, $3) && public.f_query_phonetic_codes($4)
@@ -257,9 +269,24 @@ public class RecordsService {
         for (String term : query.search().split("\\s+")) {
             appendTermCondition(term, conditions, arguments);
         }
-        jdbcTemplate.execute("SET LOCAL pg_trgm.strict_word_similarity_threshold = 0.4");
         String sql = "SELECT s.id FROM song s WHERE " + String.join(" AND ", conditions);
-        return jdbcTemplate.queryForList(sql, Long.class, arguments.toArray());
+        return jdbcTemplate.execute((Connection connection) -> {
+            try (Statement statement = connection.createStatement()) {
+                statement.execute("SET pg_trgm.strict_word_similarity_threshold = 0.24");
+            }
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                for (int i = 0; i < arguments.size(); i++) {
+                    statement.setObject(i + 1, arguments.get(i));
+                }
+                List<Long> ids = new ArrayList<>();
+                try (ResultSet rs = statement.executeQuery()) {
+                    while (rs.next()) {
+                        ids.add(rs.getLong(1));
+                    }
+                }
+                return ids;
+            }
+        });
     }
 
     private void appendTermCondition(
