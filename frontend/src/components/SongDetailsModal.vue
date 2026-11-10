@@ -10,7 +10,7 @@
         <div class="detail-overview">
           <AlbumArtwork :src="track.coverUrl" :album="track.album" class="large-cover" />
           <div class="detail-facts">
-            <p class="channel">{{ CHANNELS[track.channel]?.name || track.channel }}</p>
+            <p class="channel">{{ isUnified ? 'All channels · combined statistics' : CHANNELS[track.channel]?.name || track.channel }}</p>
             <h2 id="song-detail-title">{{ track.title }}</h2>
             <p class="artist">{{ track.artist }}</p>
             <p class="album">{{ track.album }}<span v-if="track.year"> · {{ track.year }}</span></p>
@@ -61,7 +61,12 @@ const props = defineProps({ song: { type: Object, required: true } })
 const emit = defineEmits(['close'])
 const dialog = ref(null)
 const details = ref(null)
-const track = computed(() => details.value?.song || props.song)
+const isUnified = computed(() => !props.song.channel)
+const track = computed(() => {
+  if (!isUnified.value) return details.value?.song || props.song
+  // Detail enrichment belongs to the representative track; retain library-wide statistics.
+  return { ...details.value?.song, ...props.song }
+})
 const browser = typeof navigator === 'undefined' ? {} : {
   userAgent: navigator.userAgent,
   maxTouchPoints: navigator.maxTouchPoints

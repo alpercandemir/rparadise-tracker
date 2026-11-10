@@ -68,6 +68,105 @@ class RecordsPostgresTest {
     }
 
     @Test
+    void libraryCombinesChannelStatisticsWithoutChangingTracksOrPlays() {
+        Song main = song("Shared", "0");
+        main.setPlayCount(Integer.MAX_VALUE);
+        main.setFirstPlayed(Instant.parse("2026-10-01T09:00:00Z"));
+        Song rock = song("Shared", "2");
+        rock.setPlayCount(3);
+        rock.setLastPlayed(Instant.parse("2026-11-02T09:00:00Z"));
+        songs.saveAll(List.of(main, rock));
+        plays.save(PlaybackEvent.builder().song(rock).channel("2")
+                .observedAt(rock.getLastPlayed()).build());
+        Song otherAlbum = song("Shared", "1");
+        otherAlbum.setAlbum("Live album");
+        Song otherArtist = song("Shared", "1");
+        otherArtist.setArtist("Other artist");
+        songs.saveAll(List.of(otherAlbum, otherArtist));
+
+        Map<?, ?> page = get("/api/songs/library?sort=playCount");
+
+        assertThat(((Number) page.get("totalElements")).longValue()).isEqualTo(3);
+        Map<String, Object> shared = items(page).getFirst();
+        assertThat(((Number) shared.get("id")).longValue()).isEqualTo(main.getId());
+        assertThat(((Number) shared.get("playCount")).longValue())
+                .isEqualTo((long) Integer.MAX_VALUE + 3);
+        assertThat(Instant.parse((String) shared.get("firstPlayed"))).isEqualTo(main.getFirstPlayed());
+        assertThat(Instant.parse((String) shared.get("lastPlayed"))).isEqualTo(rock.getLastPlayed());
+        assertThat(shared).doesNotContainKey("channel");
+        assertThat(items(get("/api/records/tracks"))).hasSize(4);
+        assertThat(items(get("/api/records/tracks?channel=2"))).hasSize(1);
+        assertThat(items(get("/api/records/plays"))).hasSize(1);
+        assertThat(songs.findById(main.getId()).orElseThrow().getPlayCount()).isEqualTo(Integer.MAX_VALUE);
+    }
+
+    @Test
+    void libraryGroupsBeforePagingAndUsesStableAggregateSorting() {
+        List<Song> tracks = new ArrayList<>();
+        for (int i = 0; i < 31; i++) {
+            Song main = song("Song " + i, "0");
+            Song mellow = song("Song " + i, "1");
+            mellow.setPlayCount(i + 1);
+            tracks.add(main);
+            tracks.add(mellow);
+        }
+        songs.saveAll(tracks);
+
+        Map<?, ?> first = get("/api/songs/library?sort=playCount&size=25");
+        Map<?, ?> second = get("/api/songs/library?sort=playCount&size=25&page=1");
+
+        assertThat(((Number) first.get("totalElements")).longValue()).isEqualTo(31);
+        assertThat(((Number) first.get("totalPages")).intValue()).isEqualTo(2);
+        assertThat(items(first)).hasSize(25);
+        assertThat(items(second)).hasSize(6);
+        assertThat(items(first).getFirst().get("title")).isEqualTo("Song 30");
+        assertThat(items(second).getLast().get("title")).isEqualTo("Song 0");
+        var recent = items(get("/api/songs/library?sort=lastPlayed"));
+        assertThat(recent).extracting(row -> ((Number) row.get("id")).longValue())
+                .isSortedAccordingTo(java.util.Comparator.reverseOrder());
+        assertThat(items(get("/api/songs/library?page=8"))).isEmpty();
+        for (String sort : List.of("id", "title", "artist", "album", "year", "firstPlayed", "lastPlayed", "playCount")) {
+            assertThat(items(get("/api/songs/library?sort=" + sort + "&direction=asc"))).hasSize(25);
+        }
+    }
+
+    @Test
+    void librarySearchRetainsLiteralFuzzyAccentAndWildcardSemantics() {
+        Song main = song("Echoes", "0");
+        main.setArtist("Pink Floyd");
+        Song rock = song("Echoes", "2");
+        rock.setArtist("Pink Floyd");
+        Song accented = song("Café 100%", "1");
+        songs.saveAll(List.of(main, rock, accented));
+
+        assertThat(items(get("/api/songs/library?q=Pink"))).hasSize(1);
+        assertThat(items(get("/api/songs/library?q=Pinnk"))).hasSize(1);
+        assertThat(items(get("/api/songs/library?q=cafe"))).hasSize(1);
+        assertThat(items(get("/api/songs/library?q=100%25"))).hasSize(1);
+        assertThat(items(get("/api/songs/library?q=zzzzzzzzzz"))).isEmpty();
+        assertThat(((Number) items(get("/api/songs/library?q=Pink")).getFirst().get("playCount"))
+                .longValue()).isEqualTo(2);
+    }
+
+    @Test
+    void libraryUsesCachedSnapshotsNoStoreAndValidatesQueries() {
+        Song song = songs.save(song("Cached library", "1"));
+        var response = http.get().uri("http://localhost:" + port + "/api/songs/library")
+                .retrieve().toEntity(Map.class);
+        assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
+        song.setPlayCount(10);
+        songs.save(song);
+        assertThat(((Number) items(get("/api/songs/library")).getFirst().get("playCount"))
+                .intValue()).isEqualTo(1);
+        songController.clearCache();
+        assertThat(((Number) items(get("/api/songs/library")).getFirst().get("playCount"))
+                .intValue()).isEqualTo(10);
+        for (String query : List.of("channel=1", "sort=channel", "sort=invalid", "page=-1", "size=500", "direction=sideways")) {
+            assertBadRequest("/api/songs/library?" + query);
+        }
+    }
+
+    @Test
     void schemaSetupCreatesValidIndexesForGlobalAndChannelRecency() {
         var definitions = jdbc.queryForList(
                 "SELECT pg_get_indexdef(i.indexrelid) FROM pg_index i "

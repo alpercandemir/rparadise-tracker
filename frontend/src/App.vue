@@ -7,12 +7,13 @@
       </h1>
       <p class="subtitle">Your listening archive · Main, Mellow & Rock</p>
       <nav class="main-nav" aria-label="Main navigation">
-        <a href="#/" :aria-current="!isRecords ? 'page' : undefined" :class="{ selected: !isRecords }">Dashboard</a>
-        <a href="#/records" :aria-current="isRecords ? 'page' : undefined" :class="{ selected: isRecords }">Records</a>
+        <a href="#/" :aria-current="view === 'dashboard' ? 'page' : undefined" :class="{ selected: view === 'dashboard' }">Dashboard</a>
+        <a href="#/songs" :aria-current="view === 'songs' ? 'page' : undefined" :class="{ selected: view === 'songs' }">Songs</a>
+        <a href="#/records" :aria-current="view === 'records' ? 'page' : undefined" :class="{ selected: view === 'records' }">Records</a>
       </nav>
     </header>
 
-    <RecordsPage v-if="isRecords" @select-song="openSong" />
+    <RecordsPage v-if="view !== 'dashboard'" :key="view" :unified="view === 'songs'" @select-song="openSong" />
     <div v-else-if="loading" class="loading">
       <div class="spinner"></div>
       <p>Loading tracks...</p>
@@ -85,32 +86,10 @@
         </div>
       </section>
 
-      <!-- Song Lists -->
-      <section class="lists-section">
-        <div class="section-heading">
-          <p>Showing up to 500 most recently played tracks. Channel tabs filter this selection.</p>
-          <a href="#/records">Browse all records →</a>
-        </div>
-        <div class="tabs">
-          <button
-            v-for="tab in tabs"
-            :key="tab.id"
-            :class="['tab', { active: activeTab === tab.id }]"
-            :aria-pressed="activeTab === tab.id"
-            @click="activeTab = tab.id"
-          >
-            {{ tab.label }}
-          </button>
-        </div>
-
-        <Transition name="fade" mode="out-in">
-          <SongList
-            :key="activeTab"
-            :songs="getTabSongs()"
-            :title="getTabTitle()"
-            @select-song="openSong"
-          />
-        </Transition>
+      <section class="card archive-links">
+        <div><h2 class="section-title">Your song library</h2><p>Browse every song with listening statistics combined across channels.</p></div>
+        <a href="#/songs">Browse all songs →</a>
+        <a href="#/records">Channel tracks &amp; playback history →</a>
       </section>
     </div>
     <SongDetailsModal v-if="selectedSong" :song="selectedSong" @close="selectedSong = null" />
@@ -126,7 +105,6 @@ import StatsCard from './components/StatsCard.vue'
 import ChannelChart from './components/ChannelChart.vue'
 import MostPlayedChart from './components/MostPlayedChart.vue'
 import TimelineChart from './components/TimelineChart.vue'
-import SongList from './components/SongList.vue'
 import SongDetailsModal from './components/SongDetailsModal.vue'
 
 const loading = ref(true)
@@ -139,23 +117,18 @@ const liveSongs = ref([])
 const selectedSong = ref(null)
 const openSong = song => { selectedSong.value = { ...song, id: song.songId ?? song.id } }
 const channels = CHANNELS
-const activeTab = ref('all')
-const isRecords = ref(window.location.hash.startsWith('#/records'))
+const currentView = () => {
+  const path = window.location.hash.split('?')[0]
+  return path === '#/songs' ? 'songs' : path === '#/records' ? 'records' : 'dashboard'
+}
+const view = ref(currentView())
 let refreshTimer
 
 const syncView = () => {
-  const previous = isRecords.value
-  isRecords.value = window.location.hash.startsWith('#/records')
-  if (previous && !isRecords.value) loadData()
+  const previous = view.value
+  view.value = currentView()
+  if (previous !== 'dashboard' && view.value === 'dashboard') loadData()
 }
-
-const tabs = [
-  { id: 'all', label: 'Latest 500 tracks' },
-  { id: 'recent', label: 'Recent' },
-  { id: 'main', label: 'Main Mix' },
-  { id: 'rock', label: 'Rock Mix' },
-  { id: 'mellow', label: 'Mellow Mix' }
-]
 
 const isChannelMatch = (songChannel, channelId) => {
   if (!songChannel) {
@@ -178,22 +151,6 @@ const currentSongs = computed(() => {
   })
   return songs
 })
-
-const getTabSongs = () => {
-  switch (activeTab.value) {
-    case 'all': return latestSongs.value
-    case 'recent': return recentSongs.value
-    case 'main': return latestSongs.value.filter(s => isChannelMatch(s.channel, '0'))
-    case 'rock': return latestSongs.value.filter(s => isChannelMatch(s.channel, '2'))
-    case 'mellow': return latestSongs.value.filter(s => isChannelMatch(s.channel, '1'))
-    default: return latestSongs.value
-  }
-}
-
-const getTabTitle = () => {
-  const tab = tabs.find(t => t.id === activeTab.value)
-  return tab ? tab.label : 'Songs'
-}
 
 const loadData = async () => {
   loadError.value = ''
@@ -223,10 +180,10 @@ const loadData = async () => {
 
 onMounted(() => {
   window.addEventListener('hashchange', syncView)
-  if (!isRecords.value) loadData()
+  if (view.value === 'dashboard') loadData()
   // Refresh only live cards; browsing lists/charts and the selected modal stay stable.
   refreshTimer = setInterval(async () => {
-    if (isRecords.value || document.hidden) return
+    if (view.value !== 'dashboard' || document.hidden) return
     try { liveSongs.value = await radioParadiseAPI.getCurrentSongs() }
     catch (error) { console.error('Could not refresh live songs:', error) }
   }, 30000)
@@ -255,14 +212,14 @@ onBeforeUnmount(() => {
 .charts-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 1.5rem; margin-bottom: 1.5rem; }
 .chart-card { padding: 1.5rem; }
 .chart-title { font-size: 1.15rem; margin-bottom: 1.25rem; letter-spacing: -.015em; }
-.tabs { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: 1rem; }
-.tab { padding: .65rem 1rem; min-height: 44px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; }
-.tab:hover { background: #eeecf7; }
-.tab.active { color: var(--primary); background: #eeecf7; border-color: #d9d4ef; }
+.archive-links { padding: 1.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+.archive-links div { flex: 1 1 300px; }
+.archive-links p { margin-top: .5rem; color: var(--text-secondary); }
+.archive-links a { color: var(--primary); font-weight: 600; }
 .loading { padding: 4rem; text-align: center; color: var(--text-secondary); }
 @media (max-width: 980px) { .channel-grid { grid-template-columns: 1fr; } }
 @media (max-width: 850px) { .main-nav { position: static; width: fit-content; margin-top: 1.25rem; } .charts-grid { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { .header { margin-bottom: 1.5rem; } .stats-grid { gap: .5rem; } .chart-card { padding: 1.1rem; } .tab { padding: .6rem .7rem; } }
+@media (max-width: 640px) { .header { margin-bottom: 1.5rem; } .stats-grid { gap: .5rem; } .chart-card { padding: 1.1rem; } }
 
 .load-error { padding: 2rem; text-align: center; }
 .load-error p { color: var(--text-secondary); margin: .75rem 0 1.25rem; }

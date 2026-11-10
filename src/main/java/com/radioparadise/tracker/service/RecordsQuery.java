@@ -34,6 +34,17 @@ public record RecordsQuery(
     private static final Set<String> PLAY_SORTS =
             Set.of("id", "title", "artist", "album", "year", "channel", "playedAt");
 
+    public static RecordsQuery parseLibrary(Map<String, String> parameters) {
+        RecordsQuery query = parse(parameters, false);
+        if (!query.channel().isEmpty()) {
+            throw new IllegalArgumentException("The song library combines all channels");
+        }
+        if (query.sort().equals("channel")) {
+            throw new IllegalArgumentException("Unsupported sort field: channel");
+        }
+        return query;
+    }
+
     public static RecordsQuery parse(Map<String, String> parameters, boolean history) {
         int page = parseInteger(parameters, "page", 0);
         int size = parseInteger(parameters, "size", 25);

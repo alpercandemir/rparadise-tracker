@@ -3,15 +3,22 @@
 Base URL: `https://rparadise.138.2.168.194.sslip.io`
 
 UI: `/#/records` (All Tracks), `/#/records?tab=plays` (Playback History).
+The channel-independent song library is at `/#/songs`.
 
 ## Endpoints
 
+- `GET /api/songs/library`: one row per exact artist/title/album combination across
+  all channels. Returns `id`, `title`, `artist`, `album`, `year`, `coverUrl`,
+  `firstPlayed` (earliest), `lastPlayed` (latest), and `playCount` (sum). Albums
+  remain separate. Metadata and the stable detail ID come from the oldest track
+  row. Grouping, sorting, and pagination cover the full archive. No storage migration
+  is needed, and channel track rows and playback events remain intact.
 - `GET /api/records/tracks`: one row per artist/title/album/channel combination,
   with all stored track metadata, `id`, `firstPlayed`, `lastPlayed`, `playCount`.
 - `GET /api/records/plays`: one row per newly observed play, with track metadata,
   event `id`, `songId`, and `playedAt`. No historical timestamps are fabricated.
 
-Both return:
+All three return:
 
 ```json
 {
@@ -25,7 +32,7 @@ Both return:
 ```
 
 `historyStartedAt` is the earliest stored event globally, regardless of the
-current filters; null until the first event, and always null for tracks.
+current filters; null until the first event, and always null for tracks and the song library.
 
 ## Query parameters
 
@@ -44,6 +51,10 @@ Track sort fields: `id`, `title`, `artist`, `album`, `year`, `channel`,
 `firstPlayed`, `lastPlayed`, `playCount`.
 
 Play sort fields: `id`, `title`, `artist`, `album`, `year`, `channel`, `playedAt`.
+Library queries use the track parameters and sort fields except `channel`:
+nonempty channel filters and sorting by channel return HTTP 400. Library search
+uses the same literal-first, accent-insensitive and typo-tolerant rules. The
+library has a separate 128-query cache with a 30-second TTL and no-store responses.
 ID breaks sorting ties. Paging reflects current data rather than a frozen
 snapshot; a new play can change totals/order between requests. Invalid supported
 parameter values return HTTP 400 with an `error` message. An out-of-range page
@@ -67,6 +78,7 @@ broader results.
 Examples:
 
 ```text
+/api/songs/library?q=Muse&sort=playCount&direction=desc
 /api/records/tracks?page=0&size=25&sort=lastPlayed&direction=desc
 /api/records/tracks?channel=2&q=Muse&sort=playCount&direction=desc
 /api/records/plays?page=0&size=50&sort=playedAt&direction=desc

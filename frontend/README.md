@@ -7,14 +7,18 @@ setup, and deployment instructions.
 ## Views
 
 - **Dashboard** (`/#/`): live channel cards, statistics, channel distribution,
-  a selectable most-played ranking, songs by decade, and All Songs / Recent / channel lists.
+  a selectable most-played ranking, songs by decade, and links to Songs and Records.
+- **Songs** (`/#/songs`): all songs combined across channels by exact artist/title/album,
+  with summed plays and earliest/latest observations. Includes search, sorting, and
+  pagination, without channel filters. Different albums remain separate.
 - **Records — All Tracks** (`/#/records`): searchable, sortable track records
   with artwork, metadata, first/last observed times, and play counts.
 - **Records — Playback History** (`/#/records?tab=plays`): individual observed
   plays with channel and date filters. History starts with collection; earlier
   broadcasts are not reconstructed.
 - **Song details**: select a song from a card, list, chart track, or Records
-  title/artwork to open large artwork, channel-specific listening statistics,
+  title/artwork to open large artwork, listening statistics (combined in Songs,
+  channel-specific elsewhere),
   duration, and lyrics from Radio Paradise with LRCLIB as a fallback and source attribution.
 
 Records supports search by track, artist, or album, channel filtering, column
@@ -67,10 +71,10 @@ Spring Boot so the dashboard and API share one origin.
 
 The dashboard loads lists and charts on entry. Only the three live channel
 cards refresh every 30 seconds; polling pauses while the browser tab is hidden
-or Records is open. Browsing lists, charts, scroll position, focus, and the
-selected modal stay stable. Returning from Records reloads dashboard data.
+or Songs/Records is open. Browsing lists, charts, scroll position, focus, and the
+selected modal stay stable. Returning from Songs or Records reloads dashboard data.
 
-Records reloads when filters, sorting, or pagination change and has an explicit
+Songs and Records reload when filters, sorting, or pagination change and have an explicit
 **Refresh** button. Backend caches can retain responses for 30 seconds, so
 refreshing does not guarantee new data immediately. See the
 [caching notes](../README.md#song-details-and-caching).
@@ -87,7 +91,7 @@ frontend/src/
 │   ├── MostPlayedChart.vue    # Top tracks by play count
 │   ├── TimelineChart.vue      # Songs by decade
 │   ├── SongList.vue           # Dashboard song lists
-│   ├── RecordsPage.vue        # Track and playback tables
+│   ├── RecordsPage.vue        # Unified songs, channel tracks, and playback tables
 │   └── SongDetailsModal.vue   # Artwork, statistics, and lyrics
 ├── services/
 │   ├── api.js                # Axios API calls and channel definitions
@@ -112,6 +116,7 @@ The UI uses Chart.js through vue-chartjs, Axios for HTTP, and native system typo
 | `/api/songs/channel/{id}` | Channel-filtered songs |
 | `/api/songs/{id}` | Song details and persisted lyrics metadata |
 | `/api/records/tracks` | Paginated track records |
+| `/api/songs/library` | Paginated songs combined across channels |
 | `/api/records/plays` | Paginated playback history |
 
 See the [Records API reference](../docs/records-api.md) for supported query

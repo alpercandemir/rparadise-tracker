@@ -45,10 +45,11 @@ A Java 25 + Spring Boot application with a Vue 3 dashboard that continuously tra
 
 ## Explore the app
 
-- **Dashboard** (`/#/`): see the latest observed song for each channel and browse up to 500 most recently played tracks, ordered by last played with ID as a stable tie-breaker. Channel tabs and decade track lists use this selection. Total Tracks, channel/decade chart counts, and Most Played cover the full archive. Follow **Browse all records** for the paginated archive.
+- **Dashboard** (`/#/`): see the latest observed song for each channel. Decade track lists use the 500 most recently played channel tracks. Total Tracks, channel/decade chart counts, and Most Played cover the full archive.
+- **Songs** (`/#/songs`): browse all songs independently of channels. Matching artist/title/album entries appear once, with combined play counts and earliest/latest observed times. Search, sort, and paginate the full library; different albums remain separate.
 - **Records → All Tracks** (`/#/records`): search by track, artist, or album; filter by channel; sort columns; and choose 25, 50, or 100 rows per page.
 - **Records → Playback History** (`/#/records?tab=plays`): browse individual observed plays and filter by calendar dates in your timezone. Filters, sorting, and pagination are preserved in the URL.
-- **Song details**: select a song card, list entry, chart track, or Records title/artwork to see larger artwork, channel-specific listening statistics, duration, and available lyrics from Radio Paradise or LRCLIB.
+- **Song details**: select artwork or a title to see larger artwork, listening statistics, duration, and available lyrics from Radio Paradise or LRCLIB. Songs retains combined statistics; Records and dashboard tracks show channel-specific statistics.
 
 History records when the tracker first observed a play, within its polling interval. Earlier broadcasts are not reconstructed, and downtime can leave gaps. See the [Records API guide](docs/records-api.md) for query parameters and storage details.
 
@@ -150,6 +151,7 @@ For the existing Oracle VM, GHCR image deployment, production approval, and roll
 
 - `GET /api/songs` - List all tracked songs
 - `GET /api/songs/dashboard` - Latest 500 tracks (`lastPlayed` and ID descending), plus all-time total, channel counts, and decade counts; cached for 30 seconds
+- `GET /api/songs/library` - Search, sort, and paginate songs combined across channels by artist/title/album, with aggregate listening statistics
 - `GET /api/songs/current` - Latest observed song per channel, from our database
 - `GET /api/songs/{id}` - Song details and on-demand, persisted lyrics metadata
 - `GET /api/songs/recent` - List latest 20 songs by `lastPlayed`
@@ -173,7 +175,7 @@ validation, and examples.
 
 The collector polls RP’s richer `/api/nowplaying_list_v2022?mode=wip-channel` feed. Its client caches each channel for 30 seconds,
 including empty/error results to avoid retry storms. Dashboard lists cache seven response
-variants; track and playback pages each cache at most 128 validated queries. Cached values
+variants; unified song, track, and playback pages each cache at most 128 validated queries. Cached values
 are DTO snapshots, and concurrent cache misses share a load. Caches expire 30 seconds after
 loading and reset on application restart. HTTP responses use `Cache-Control: no-store` so
 browser/CDN caching does not add another TTL. Polling, server TTLs, and browser polling can
@@ -181,7 +183,7 @@ add delay; these are interval settings, not a guarantee of exactly 30 seconds en
 
 Only the three live cards refresh every 30 seconds. Browsing lists, charts, record filters,
 scroll position, focus, and the selected modal stay stable. Hidden browser tabs skip polling.
-Lists/charts reload on returning from Records; Records has an explicit Refresh button.
+Lists/charts reload on returning from Songs or Records; both archive pages have an explicit Refresh button.
 
 Opening a song fetches RP’s own `/siteapi.php?file=music::song&song_id=...` endpoint,
 with a 2-second connection timeout and 4-second read timeout. RP song IDs and duration

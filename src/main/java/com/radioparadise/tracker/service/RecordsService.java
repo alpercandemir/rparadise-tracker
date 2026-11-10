@@ -3,6 +3,7 @@ package com.radioparadise.tracker.service;
 import com.radioparadise.tracker.dto.PlaybackRecord;
 import com.radioparadise.tracker.dto.RecordsPage;
 import com.radioparadise.tracker.dto.TrackRecord;
+import com.radioparadise.tracker.dto.UnifiedSong;
 import com.radioparadise.tracker.model.PlaybackEvent;
 import com.radioparadise.tracker.model.Song;
 import com.radioparadise.tracker.repository.PlaybackEventRepository;
@@ -17,12 +18,15 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -196,6 +200,65 @@ public class RecordsService {
             return literalPage;
         }
         return loadTracks(query, resolveFuzzySongIds(query));
+    }
+
+    public RecordsPage<UnifiedSong> library(RecordsQuery query) {
+        var literalPage = loadLibrary(query, resolveLiteralSongIds(query));
+        if (query.search().isEmpty() || literalPage.totalElements() > 0) {
+            return literalPage;
+        }
+        return loadLibrary(query, resolveFuzzySongIds(query));
+    }
+
+    private RecordsPage<UnifiedSong> loadLibrary(RecordsQuery query, List<Long> matchingSongIds) {
+        if (matchingSongIds != null && matchingSongIds.isEmpty()) {
+            return new RecordsPage<>(List.of(), query.page(), query.size(), 0, 0, null);
+        }
+        String filter = matchingSongIds == null ? "" : " WHERE s.id IN (:ids)";
+        // Group the full archive before pagination. The oldest row supplies a stable detail ID.
+        String grouped = """
+                SELECT min(s.id) AS id, min(s.first_played) AS first_played,
+                       max(s.last_played) AS last_played, sum(s.play_count) AS play_count
+                FROM song s
+                """ + filter + " GROUP BY s.artist, s.title, s.album";
+        var jdbc = new NamedParameterJdbcTemplate(jdbcTemplate);
+        Map<String, Object> parameters = new HashMap<>();
+        if (matchingSongIds != null) {
+            parameters.put("ids", matchingSongIds);
+        }
+        long total = jdbc.queryForObject(
+                "SELECT count(*) FROM (" + grouped + ") songs", parameters, Long.class);
+        parameters.put("limit", query.size());
+        parameters.put("offset", (long) query.page() * query.size());
+        String sql = """
+                SELECT s.id, s.title, s.artist, s.album, s.release_year, s.cover_url,
+                       g.first_played, g.last_played, g.play_count
+                FROM (
+                """ + grouped + ") g JOIN song s ON s.id = g.id ORDER BY "
+                + libraryOrdering(query) + " LIMIT :limit OFFSET :offset";
+        var items = jdbc.query(sql, parameters, (rs, row) -> new UnifiedSong(
+                rs.getLong("id"), rs.getString("title"), rs.getString("artist"),
+                rs.getString("album"), rs.getString("release_year"), rs.getString("cover_url"),
+                rs.getTimestamp("first_played").toInstant(),
+                rs.getTimestamp("last_played").toInstant(), rs.getLong("play_count")));
+        int totalPages = (int) ((total + query.size() - 1) / query.size());
+        return new RecordsPage<>(items, query.page(), query.size(), total, totalPages, null);
+    }
+
+    private String libraryOrdering(RecordsQuery query) {
+        String column = switch (query.sort()) {
+            case "id" -> "s.id";
+            case "title" -> "s.title";
+            case "artist" -> "s.artist";
+            case "album" -> "s.album";
+            case "year" -> "s.release_year";
+            case "firstPlayed" -> "g.first_played";
+            case "lastPlayed" -> "g.last_played";
+            case "playCount" -> "g.play_count";
+            default -> throw new IllegalArgumentException("Unsupported sort field: " + query.sort());
+        };
+        String direction = query.direction().name();
+        return column + " " + direction + (column.equals("s.id") ? "" : ", s.id " + direction);
     }
 
     private RecordsPage<TrackRecord> loadTracks(RecordsQuery query, List<Long> matchingSongIds) {

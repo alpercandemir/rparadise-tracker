@@ -13,6 +13,19 @@ import org.springframework.data.domain.Sort;
 
 class RecordsQueryTest {
     @Test
+    void libraryUsesTrackPaginationAndRejectsChannelSpecificQueries() {
+        RecordsQuery query = RecordsQuery.parseLibrary(Map.of("sort", "playCount", "q", " Muse "));
+
+        assertThat(query.search()).isEqualTo("Muse");
+        assertThat(query.pageable(false).getSort())
+                .containsExactly(Sort.Order.desc("playCount"), Sort.Order.desc("id"));
+        assertThatThrownBy(() -> RecordsQuery.parseLibrary(Map.of("channel", "1")))
+                .hasMessage("The song library combines all channels");
+        assertThatThrownBy(() -> RecordsQuery.parseLibrary(Map.of("sort", "channel")))
+                .hasMessage("Unsupported sort field: channel");
+    }
+
+    @Test
     void defaultsKeepTrackAndPlaybackOrderingStable() {
         RecordsQuery tracks = RecordsQuery.parse(Map.of(), false);
         RecordsQuery plays = RecordsQuery.parse(Map.of(), true);
