@@ -35,7 +35,7 @@ current filters; null until the first event, and always null for tracks.
 | `size` | 25 (default), 50, or 100 |
 | `sort` | Track column, default `lastPlayed`; history defaults to `playedAt` |
 | `direction` | `asc` or `desc` (default) |
-| `q` | Case-insensitive literal substring in title, artist, or album; maximum 200 characters |
+| `q` | Space-separated terms across title, artist, and album; case- and accent-insensitive; maximum 200 characters |
 | `channel` | `0` Main Mix, `1` Mellow Mix, `2` Rock Mix; omitted/empty means all |
 | `from`, `to` | Plays only: inclusive calendar dates, `YYYY-MM-DD`, in `timeZone` |
 | `timeZone` | Timezone for history date boundaries, e.g. `America/New_York` or `UTC`; omitted defaults to `Europe/Istanbul` for existing API clients. The UI explicitly sends the browser's timezone. |
@@ -48,6 +48,21 @@ ID breaks sorting ties. Paging reflects current data rather than a frozen
 snapshot; a new play can change totals/order between requests. Invalid supported
 parameter values return HTTP 400 with an `error` message. An out-of-range page
 returns an empty `items` array with the real total.
+
+Every search term must match. Literal substrings are preferred: when any records
+match all terms literally within the selected channel and history dates, only
+those records are returned. For example, `Radiohead There There` finds that track
+without including other Radiohead songs or loosely related artists. Repeated
+terms do not require repeated occurrences. `%`, `_`, and backslashes are literal
+characters, not search operators.
+
+If there are no literal matches within the filters, search falls back to closer
+typo and phonetic matches for terms of at least three characters. Trigram matches
+require a strict word similarity of at least 0.6; phonetic matches also require
+bounded spelling differences. This supports small misspellings such as
+`Pinnk Flyd` and `Oink Floyd`, while rejecting loosely similar words. Sorting and
+pagination apply to the selected match set; an out-of-range page does not trigger
+broader results.
 
 Examples:
 

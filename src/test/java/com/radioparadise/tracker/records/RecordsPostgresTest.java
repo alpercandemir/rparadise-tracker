@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,6 +25,7 @@ import org.springframework.core.env.Environment;
 
 import java.net.URI;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -355,9 +357,6 @@ class RecordsPostgresTest {
         Song dogs = song("Dogs", "1");
         dogs.setArtist("Pink Floyd");
         dogs.setAlbum("Animals");
-        Song mariah = song("Vision of Love", "1");
-        mariah.setArtist("Mariah Carey");
-        mariah.setAlbum("Mariah Carey");
         Song sigur = song("Hoppípolla", "1");
         sigur.setArtist("Sigur Rós");
         sigur.setAlbum("Takk...");
@@ -365,7 +364,7 @@ class RecordsPostgresTest {
         philip.setArtist("Philip Glass");
         philip.setAlbum("Glassworks");
         songs.saveAll(List.of(song("100% Pure", "1"), song("100 Percent", "1"), song("100% Pure", "2"),
-                song("under_score", "1"), song("underXscore", "1"), sheep, dogs, mariah, sigur, philip));
+                song("under_score", "1"), song("underXscore", "1"), sheep, dogs, sigur, philip));
         plays.save(PlaybackEvent.builder().song(sheep).channel("1")
                 .observedAt(Instant.parse("2026-11-01T09:00:00Z")).build());
         List<Map<String, Object>> rows = items(get("/api/records/tracks?q=100%25&channel=1"));
@@ -383,9 +382,11 @@ class RecordsPostgresTest {
         assertThat(items(get("/api/records/tracks?q=Pinnk+Flyd")))
                 .extracting(row -> row.get("title"))
                 .containsExactlyInAnyOrder("Sheep", "Dogs");
-        assertThat(items(get("/api/records/tracks?q=Oink+Floyd")))
+        List<Map<String, Object>> typoMatches = items(get("/api/records/tracks?q=Oink+Floyd"));
+        assertThat(typoMatches)
                 .extracting(row -> row.get("title"))
                 .containsExactlyInAnyOrder("Sheep", "Dogs");
+        assertThat(typoMatches).extracting(row -> row.get("artist")).containsOnly("Pink Floyd");
         assertThat(items(get("/api/records/tracks?q=Pink+Floyd+Sheep")))
                 .extracting(row -> row.get("title"))
                 .containsExactly("Sheep");
@@ -398,9 +399,6 @@ class RecordsPostgresTest {
         assertThat(items(get("/api/records/tracks?q=Sheep+Animals+Floyd")))
                 .extracting(row -> row.get("title"))
                 .containsExactly("Sheep");
-        assertThat(items(get("/api/records/tracks?q=Mariacare")))
-                .extracting(row -> row.get("artist"))
-                .containsExactly("Mariah Carey");
         assertThat(items(get("/api/records/tracks?q=Sigur+Ros+Hoppipolla")))
                 .extracting(row -> row.get("artist"))
                 .containsExactly("Sigur Rós");
@@ -412,6 +410,80 @@ class RecordsPostgresTest {
         assertThat(items(get("/api/records/plays?q=Pin+Floyd+Shep")))
                 .extracting(row -> row.get("title"))
                 .containsExactly("Sheep");
+        assertThat(items(get("/api/records/plays?q=Oink+Floyd")))
+                .extracting(row -> row.get("artist"))
+                .containsExactly("Pink Floyd");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"tracks", "plays"})
+    void literalArtistAndTitleMatchesExcludeFuzzyRecordsAndKeepPaginationTotals(String endpoint) {
+        Song target = song("There There", "2");
+        target.setArtist("Radiohead");
+        target.setAlbum("Hail to the Thief");
+        Song otherChannel = song("There There", "0");
+        otherChannel.setArtist("Radiohead");
+        otherChannel.setAlbum("Hail to the Thief");
+        Song clocks = song("Clocks", "1");
+        clocks.setArtist("Coldplay");
+        clocks.setAlbum("A Rush of Blood to the Head");
+        Song radio = song("Radio Nowhere", "2");
+        radio.setArtist("Bruce Springsteen");
+        radio.setAlbum("Magic");
+        List<Song> records = new ArrayList<>(List.of(target, otherChannel, clocks, radio));
+        for (int i = 0; i < 30; i++) {
+            Song unrelated = song("High and Dry " + i, "2");
+            unrelated.setArtist("Radiohead");
+            unrelated.setAlbum("The Bends");
+            records.add(unrelated);
+        }
+        for (Song saved : songs.saveAll(records)) {
+            plays.save(PlaybackEvent.builder().song(saved).channel(saved.getChannel())
+                    .observedAt(Instant.parse("2026-11-01T09:00:00Z")).build());
+        }
+
+        for (String search : List.of("Radiohead+There+There", "THERE+radiohead", "Radiohed+There+There")) {
+            Map<?, ?> page = get("/api/records/" + endpoint + "?q=" + search);
+            assertThat(items(page)).extracting(row -> row.get("title"))
+                    .containsExactly("There There", "There There");
+            assertThat(((Number) page.get("totalElements")).longValue()).isEqualTo(2);
+            Map<?, ?> beyondLastPage = get("/api/records/" + endpoint + "?q=" + search + "&page=1");
+            assertThat(items(beyondLastPage)).isEmpty();
+            assertThat(((Number) beyondLastPage.get("totalElements")).longValue()).isEqualTo(2);
+        }
+        assertThat(items(get("/api/records/" + endpoint + "?q=Radiohead+There+There&channel=2")))
+                .extracting(row -> row.get("channel")).containsExactly("2");
+    }
+
+    @Test
+    void literalMatchesInOtherChannelsDoNotSuppressTypoFallback() {
+        Song literal = song("Pinnk", "0");
+        Song typo = song("Sheep", "1");
+        typo.setArtist("Pink Floyd");
+        songs.saveAll(List.of(literal, typo));
+
+        assertThat(items(get("/api/records/tracks?q=Pinnk")))
+                .extracting(row -> row.get("title")).containsExactly("Pinnk");
+        assertThat(items(get("/api/records/tracks?q=Pinnk&channel=1")))
+                .extracting(row -> row.get("title")).containsExactly("Sheep");
+    }
+
+    @Test
+    void literalMatchesOutsideHistoryDatesDoNotSuppressTypoFallback() {
+        Song literal = songs.save(song("Pinnk", "1"));
+        Song typo = song("Sheep", "1");
+        typo.setArtist("Pink Floyd");
+        typo = songs.save(typo);
+        plays.save(PlaybackEvent.builder().song(literal).channel("1")
+                .observedAt(Instant.parse("2026-11-01T09:00:00Z")).build());
+        plays.save(PlaybackEvent.builder().song(typo).channel("1")
+                .observedAt(Instant.parse("2026-11-02T09:00:00Z")).build());
+
+        assertThat(items(get("/api/records/plays?q=Pinnk&channel=1")))
+                .extracting(row -> row.get("title")).containsExactly("Pinnk");
+        Map<?, ?> page = get("/api/records/plays?q=Pinnk&channel=1&from=2026-11-02&to=2026-11-02");
+        assertThat(items(page)).extracting(row -> row.get("title")).containsExactly("Sheep");
+        assertThat(page.get("historyStartedAt")).isEqualTo("2026-11-01T09:00:00Z");
     }
 
     @Test
