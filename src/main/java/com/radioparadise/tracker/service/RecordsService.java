@@ -15,6 +15,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -29,6 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class RecordsService {
+    private static final String LITERAL_TERM_CONDITION =
+            "public.f_song_search_text(s.title, s.artist, s.album) "
+                    + "LIKE public.f_unaccent(?) ESCAPE '\\'";
     private static final String FUZZY_TERM_CONDITION =
             """
             (
@@ -38,7 +42,7 @@ public class RecordsService {
             )
             AND (
                 public.f_song_search_text(s.title, s.artist, s.album) LIKE public.f_unaccent(?) ESCAPE '\\'
-                OR public.strict_word_similarity(public.f_unaccent(?), public.f_song_search_text(s.title, s.artist, s.album)) >= 0.24
+                OR public.strict_word_similarity(public.f_unaccent(?), public.f_song_search_text(s.title, s.artist, s.album)) >= 0.6
                 OR public.f_phonetic_word_match(s.title, s.artist, s.album, ?)
             )
             """;
@@ -187,7 +191,14 @@ public class RecordsService {
     }
 
     public RecordsPage<TrackRecord> tracks(RecordsQuery query) {
-        List<Long> matchingSongIds = resolveMatchingSongIds(query);
+        var literalPage = loadTracks(query, resolveLiteralSongIds(query));
+        if (query.search().isEmpty() || literalPage.totalElements() > 0) {
+            return literalPage;
+        }
+        return loadTracks(query, resolveFuzzySongIds(query));
+    }
+
+    private RecordsPage<TrackRecord> loadTracks(RecordsQuery query, List<Long> matchingSongIds) {
         if (matchingSongIds != null && matchingSongIds.isEmpty()) {
             return RecordsPage.from(Page.empty(query.pageable(false)), null);
         }
@@ -207,7 +218,15 @@ public class RecordsService {
                         .findFirstByOrderByObservedAtAscIdAsc()
                         .map(PlaybackEvent::getObservedAt)
                         .orElse(null);
-        List<Long> matchingSongIds = resolveMatchingSongIds(query);
+        var literalPage = loadPlays(query, resolveLiteralSongIds(query), historyStartedAt);
+        if (query.search().isEmpty() || literalPage.totalElements() > 0) {
+            return literalPage;
+        }
+        return loadPlays(query, resolveFuzzySongIds(query), historyStartedAt);
+    }
+
+    private RecordsPage<PlaybackRecord> loadPlays(
+            RecordsQuery query, List<Long> matchingSongIds, Instant historyStartedAt) {
         if (matchingSongIds != null && matchingSongIds.isEmpty()) {
             return RecordsPage.from(Page.empty(query.pageable(true)), historyStartedAt);
         }
@@ -260,19 +279,34 @@ public class RecordsService {
         return predicates;
     }
 
-    private List<Long> resolveMatchingSongIds(RecordsQuery query) {
+    private List<Long> resolveLiteralSongIds(RecordsQuery query) {
         if (query.search().isEmpty()) {
             return null;
         }
         List<String> conditions = new ArrayList<>();
         List<Object> arguments = new ArrayList<>();
         for (String term : query.search().split("\\s+")) {
+            conditions.add(LITERAL_TERM_CONDITION);
+            arguments.add(likePattern(term));
+        }
+        return findSongIds(conditions, arguments);
+    }
+
+    private List<Long> resolveFuzzySongIds(RecordsQuery query) {
+        List<String> conditions = new ArrayList<>();
+        List<Object> arguments = new ArrayList<>();
+        for (String term : query.search().split("\\s+")) {
             appendTermCondition(term, conditions, arguments);
         }
+        return findSongIds(conditions, arguments);
+    }
+
+    private List<Long> findSongIds(List<String> conditions, List<Object> arguments) {
         String sql = "SELECT s.id FROM song s WHERE " + String.join(" AND ", conditions);
         return jdbcTemplate.execute((Connection connection) -> {
             try (Statement statement = connection.createStatement()) {
-                statement.execute("SET pg_trgm.strict_word_similarity_threshold = 0.24");
+                // Keep one-letter typos as index candidates; the term condition checks relevance.
+                statement.execute("SET LOCAL pg_trgm.strict_word_similarity_threshold = 0.24");
             }
             try (PreparedStatement statement = connection.prepareStatement(sql)) {
                 for (int i = 0; i < arguments.size(); i++) {
@@ -293,9 +327,7 @@ public class RecordsService {
             String term, List<String> conditions, List<Object> arguments) {
         String pattern = likePattern(term);
         if (!isFuzzyCandidate(term)) {
-            conditions.add(
-                    "public.f_song_search_text(s.title, s.artist, s.album) "
-                            + "LIKE public.f_unaccent(?) ESCAPE '\\'");
+            conditions.add(LITERAL_TERM_CONDITION);
             arguments.add(pattern);
             return;
         }
@@ -318,6 +350,9 @@ public class RecordsService {
     }
 
     private boolean isFuzzyCandidate(String term) {
-        return term.length() >= 3 && !term.contains("%") && !term.contains("_");
+        return term.length() >= 3
+                && !term.contains("%")
+                && !term.contains("_")
+                && !term.contains("\\");
     }
 }
