@@ -3,19 +3,21 @@
     <div class="records-heading">
       <div>
         <p class="eyebrow">YOUR MUSIC ARCHIVE</p>
-        <h2 id="records-title">Records</h2>
-        <p class="description">Explore saved tracks and every observed play.</p>
+        <h2 id="records-title">{{ unified ? 'Songs' : 'Records' }}</h2>
+        <p class="description">{{ unified ? 'One entry per song across all channels, with combined listening statistics.' : 'Explore channel-specific tracks and every observed play.' }}</p>
       </div>
       <button class="control secondary" @click="loadPage" :disabled="loading">Refresh</button>
     </div>
 
-    <div class="record-tabs" role="tablist" aria-label="Record views">
+    <div v-if="!unified" class="record-tabs" role="tablist" aria-label="Record views">
       <button v-for="tab in recordTabs" :key="tab.id" role="tab"
         :id="`tab-${tab.id}`" :aria-selected="state.tab === tab.id" aria-controls="records-panel"
         :class="['record-tab', { active: state.tab === tab.id }]" @click="change({ tab: tab.id })">
         {{ tab.label }}
       </button>
     </div>
+
+    <p v-if="unified" class="history-note library-note">Songs with the same artist, title, and album are combined. Different albums remain separate. Plays and first/last observed times cover all channels.</p>
 
     <p v-if="state.tab === 'plays'" class="history-note">
       <template v-if="page.historyStartedAt">History available since {{ localTime(page.historyStartedAt) }} ({{ clientTimeZone }}).</template>
@@ -27,7 +29,7 @@
       <label class="search-field">Search
         <input v-model="draft.q" maxlength="200" type="search" placeholder="Track, artist, or album" />
       </label>
-      <label>Channel
+      <label v-if="!unified">Channel
         <select v-model="draft.channel">
           <option value="">All channels</option>
           <option v-for="(channel, id) in CHANNELS" :key="id" :value="id">{{ channel.name }}</option>
@@ -42,7 +44,7 @@
     </form>
 
     <div class="table-toolbar">
-      <p aria-live="polite">{{ loading ? 'Loading records…' : pageRange(page) + ' records' }}</p>
+      <p aria-live="polite">{{ loading ? `Loading ${entryLabel}…` : pageRange(page) + ' ' + entryLabel }}</p>
       <label>Rows per page
         <select :value="state.size" @change="change({ size: Number($event.target.value) })">
           <option :value="25">25</option><option :value="50">50</option><option :value="100">100</option>
@@ -50,22 +52,22 @@
       </label>
     </div>
 
-    <p class="table-hint">Select a track for details. Scroll the table sideways to see all columns.</p>
+    <p class="table-hint">Select a {{ unified ? 'song' : 'track' }} for details. Scroll the table sideways to see all columns.</p>
 
-    <div id="records-panel" role="tabpanel" :aria-labelledby="`tab-${state.tab}`" :aria-busy="loading">
+    <div id="records-panel" :role="unified ? 'region' : 'tabpanel'" :aria-labelledby="unified ? 'records-title' : `tab-${state.tab}`" :aria-busy="loading">
       <div v-if="error" class="message error" role="alert">
         <p>{{ error }}</p><button class="control" @click="loadPage">Try again</button>
       </div>
-      <div v-else-if="loading" class="message" role="status">Loading records…</div>
+      <div v-else-if="loading" class="message" role="status">Loading {{ entryLabel }}…</div>
       <div v-else-if="!page.items.length" class="message">
-        <h3>No matching records</h3>
+        <h3>No matching {{ entryLabel }}</h3>
         <p v-if="state.page > 0">This page is empty. Return to the first page to see available records.</p>
         <p v-else>Try another search or clear the filters.</p>
         <button v-if="state.page > 0" class="control" @click="change({ page: 0 })">First page</button>
       </div>
       <div v-else class="table-scroll" tabindex="0" aria-label="Records table, scroll horizontally for more columns">
         <table>
-          <caption class="sr-only">{{ state.tab === 'plays' ? 'Playback history' : 'All saved tracks' }}. Click a column header to sort. All times use your timezone: {{ clientTimeZone }}.</caption>
+          <caption class="sr-only">{{ unified ? 'All songs across channels' : state.tab === 'plays' ? 'Playback history' : 'All saved tracks' }}. Click a column header to sort. All times use your timezone: {{ clientTimeZone }}.</caption>
           <thead><tr>
             <th scope="col" class="cover-cell">Cover</th>
             <th v-for="column in columns" :key="column.key" scope="col" :aria-sort="ariaSort(column.key)">
@@ -95,7 +97,7 @@
 
     <footer class="pagination">
       <p>Your timezone: <strong>{{ clientTimeZone }}</strong></p>
-      <nav class="page-controls" aria-label="Records pagination">
+      <nav class="page-controls" :aria-label="unified ? 'Songs pagination' : 'Records pagination'">
         <button class="control secondary" :disabled="loading || state.page === 0" @click="change({ page: state.page - 1 })">Previous</button>
         <span>Page {{ state.page + 1 }} of {{ Math.max(page.totalPages, 1) }}</span>
         <button class="control secondary" :disabled="loading || state.page + 1 >= page.totalPages" @click="change({ page: state.page + 1 })">Next</button>
@@ -111,6 +113,8 @@ import AlbumArtwork from './AlbumArtwork.vue'
 import { CHANNELS, radioParadiseAPI } from '../services/api.js'
 import { parseRecordsHash, recordsHash, updateRecordsState, formatRecordTime, getClientTimeZone, pageRange } from '../services/records.js'
 
+const props = defineProps({ unified: { type: Boolean, default: false } })
+const entryLabel = computed(() => props.unified ? 'songs' : 'records')
 const recordTabs = [{ id: 'tracks', label: 'All Tracks' }, { id: 'plays', label: 'Playback History' }]
 const clientTimeZone = getClientTimeZone()
 const localTime = value => formatRecordTime(value, clientTimeZone)
@@ -126,10 +130,15 @@ const metadataColumns = [
   { key: 'title', label: 'Track' }, { key: 'artist', label: 'Artist' },
   { key: 'album', label: 'Album' }, { key: 'year', label: 'Year' }, { key: 'channel', label: 'Channel' }
 ]
-const columns = computed(() => state.value.tab === 'plays'
-  ? [{ key: 'playedAt', label: 'Observed at', kind: 'date' }, ...metadataColumns]
-  : [...metadataColumns, { key: 'firstPlayed', label: 'First played', kind: 'date' },
-    { key: 'lastPlayed', label: 'Last played', kind: 'date' }, { key: 'playCount', label: 'Plays' }])
+const columns = computed(() => {
+  const metadata = props.unified
+    ? metadataColumns.filter(column => column.key !== 'channel').map(column => column.key === 'title' ? { ...column, label: 'Song' } : column)
+    : metadataColumns
+  return state.value.tab === 'plays'
+    ? [{ key: 'playedAt', label: 'Observed at', kind: 'date' }, ...metadata]
+    : [...metadata, { key: 'firstPlayed', label: 'First played', kind: 'date' },
+      { key: 'lastPlayed', label: 'Last played', kind: 'date' }, { key: 'playCount', label: 'Plays' }]
+})
 
 function syncDraft() {
   for (const key of ['q', 'channel', 'from', 'to']) draft[key] = state.value[key]
@@ -162,14 +171,15 @@ async function loadPage() {
   loading.value = true
   error.value = ''
   const { tab, ...params } = state.value
-  if (tab === 'tracks') { delete params.from; delete params.to }
+  if (tab !== 'plays') { delete params.from; delete params.to }
   else params.timeZone = clientTimeZone
+  if (tab === 'songs') delete params.channel
   try {
     const data = await radioParadiseAPI.getRecordsPage(tab, params, controller.signal)
     if (current === request) page.value = data
   } catch (failure) {
     if (current === request && failure.code !== 'ERR_CANCELED') {
-      error.value = failure.response?.data?.error || 'Could not load records. Please try again.'
+      error.value = failure.response?.data?.error || `Could not load ${entryLabel.value}. Please try again.`
     }
   } finally {
     if (current === request) loading.value = false
@@ -177,7 +187,8 @@ async function loadPage() {
 }
 
 function onHashChange() {
-  if (!window.location.hash.startsWith('#/records')) return
+  const route = window.location.hash.split('?')[0]
+  if (route !== (props.unified ? '#/songs' : '#/records')) return
   state.value = parseRecordsHash(window.location.hash)
   syncDraft()
   loadPage()
@@ -200,6 +211,7 @@ h2 { color: var(--text-primary); font-size: 2rem; }
 .record-tab { background: none; border: 0; padding: 1rem; color: var(--text-secondary); cursor: pointer; font: inherit; font-weight: 600; border-bottom: 3px solid transparent; }
 .record-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
 .history-note { background: #edf2ff; color: #4a5568; border-radius: 8px; padding: 1rem; font-size: .85rem; line-height: 1.6; margin-bottom: 1.25rem; }
+.library-note { margin-top: 1.5rem; }
 .filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem; padding: 1rem; background: #f5f6fb; border-radius: 12px; }
 label { display: flex; flex-direction: column; gap: .4rem; color: #4a5568; font-size: .8rem; font-weight: 600; }
 .search-field { flex: 1; min-width: 200px; }

@@ -18,8 +18,8 @@ export const radioParadiseAPI = {
         return response.data
     },
     async getRecordsPage(tab, params, signal) {
-        const endpoint = tab === 'plays' ? 'plays' : 'tracks'
-        const response = await axios.get(`${API_BASE}/records/${endpoint}`, { params, signal })
+        const endpoint = tab === 'songs' ? 'songs/library' : `records/${tab === 'plays' ? 'plays' : 'tracks'}`
+        const response = await axios.get(`${API_BASE}/${endpoint}`, { params, signal })
         return response.data
     },
 

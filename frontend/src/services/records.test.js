@@ -5,6 +5,15 @@ import { execFileSync } from 'node:child_process'
 import { parseRecordsHash, recordsHash, updateRecordsState, formatRecordTime, pageRange } from './records.js'
 import { radioParadiseAPI } from './api.js'
 
+test('songs URL preserves browsing state and excludes channel and history filters', () => {
+    const state = parseRecordsHash('#/songs?q=Muse&page=2&size=50&sort=playCount&direction=asc&channel=2&from=2026-11-01&tab=plays')
+    assert.deepEqual(state, { tab: 'songs', page: 2, size: 50, sort: 'playCount', direction: 'asc', q: 'Muse', channel: '', from: '', to: '' })
+    assert.ok(recordsHash(state).startsWith('#/songs?'))
+    assert.deepEqual(parseRecordsHash(recordsHash(state)), state)
+    assert.equal(parseRecordsHash('#/songs?sort=channel').sort, 'lastPlayed')
+    assert.equal(updateRecordsState(state, { q: 'Pink Floyd' }).page, 0)
+})
+
 test('records URL preserves filters, ordering, and page across refresh', () => {
     const state = parseRecordsHash('#/records?tab=plays&page=2&size=50&sort=artist&direction=asc&q=King%20Buffalo&channel=2&from=2026-11-01&to=2026-11-02')
     assert.deepEqual(state, { tab: 'plays', page: 2, size: 50, sort: 'artist', direction: 'asc', q: 'King Buffalo', channel: '2', from: '2026-11-01', to: '2026-11-02' })
@@ -77,10 +86,14 @@ test('API requests the right paginated endpoint and passes cancellation and filt
     try {
         await radioParadiseAPI.getRecordsPage('plays', { page: 3, size: 50, channel: '1' }, signal)
         await radioParadiseAPI.getRecordsPage('tracks', { sort: 'playCount', direction: 'desc' }, signal)
+        await radioParadiseAPI.getRecordsPage('songs', { page: 2, q: 'Muse' }, signal)
         assert.equal(calls[0].url, '/api/records/plays')
         assert.deepEqual(calls[0].params, { page: 3, size: 50, channel: '1' })
         assert.equal(calls[0].signal, signal)
         assert.equal(calls[1].url, '/api/records/tracks')
+        assert.equal(calls[2].url, '/api/songs/library')
+        assert.deepEqual(calls[2].params, { page: 2, q: 'Muse' })
+        assert.equal(calls[2].signal, signal)
     } finally {
         axios.defaults.adapter = original
     }

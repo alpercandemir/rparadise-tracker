@@ -1,11 +1,12 @@
 const sorts = {
+    songs: ['id', 'title', 'artist', 'album', 'year', 'firstPlayed', 'lastPlayed', 'playCount'],
     tracks: ['id', 'title', 'artist', 'album', 'year', 'channel', 'firstPlayed', 'lastPlayed', 'playCount'],
     plays: ['id', 'title', 'artist', 'album', 'year', 'channel', 'playedAt']
 }
 
 export function parseRecordsHash(hash) {
     const params = new URLSearchParams(hash.split('?')[1] || '')
-    const tab = params.get('tab') === 'plays' ? 'plays' : 'tracks'
+    const tab = hash.split('?')[0] === '#/songs' ? 'songs' : params.get('tab') === 'plays' ? 'plays' : 'tracks'
     const page = Number(params.get('page') || 0)
     const size = Number(params.get('size') || 25)
     const sort = params.get('sort')
@@ -16,7 +17,7 @@ export function parseRecordsHash(hash) {
         sort: sorts[tab].includes(sort) ? sort : tab === 'plays' ? 'playedAt' : 'lastPlayed',
         direction: params.get('direction') === 'asc' ? 'asc' : 'desc',
         q: (params.get('q') || '').slice(0, 200),
-        channel: ['0', '1', '2'].includes(params.get('channel')) ? params.get('channel') : '',
+        channel: tab !== 'songs' && ['0', '1', '2'].includes(params.get('channel')) ? params.get('channel') : '',
         from: tab === 'plays' ? params.get('from') || '' : '',
         to: tab === 'plays' ? params.get('to') || '' : ''
     }
@@ -27,7 +28,7 @@ export function recordsHash(state) {
     for (const [key, value] of Object.entries(state)) {
         if (value !== '' && value !== null && value !== undefined) params.set(key, String(value))
     }
-    return '#/records?' + params.toString()
+    return (state.tab === 'songs' ? '#/songs?' : '#/records?') + params.toString()
 }
 
 export function updateRecordsState(state, patch) {
