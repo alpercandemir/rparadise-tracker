@@ -153,9 +153,13 @@ Use a transient systemd unit for the actual long run so an SSH interruption does
 not interrupt maintenance. The wrapper checks the expected healthy application
 image and archive size, pauses the retry timer/service and application, takes a
 final public-schema snapshot, then runs the same atomic merge and a repeat run.
+The 768 MiB production memory-limit rehearsal was killed during the large merge
+and recovered with the transaction rolled back. During maintenance, the wrapper
+therefore temporarily raises PostgreSQL's limit to 2 GiB after stopping the app.
 It updates planner statistics and checks actual row counts, provenance, indexes,
 and event-derived counters. A failure before SQL commit rolls back the merge.
-An exit trap restarts the application, checks health, and restores the retry timer
+An exit trap restores the database's original memory/swap limits, restarts the
+application, checks health, and restores the retry timer
 on both successful and failed runs. Do not run the merge SQL against active writers.
 
 The collector is stopped during maintenance; its normal observation-gap limitation

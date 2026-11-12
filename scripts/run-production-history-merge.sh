@@ -44,9 +44,18 @@ phase() {
 }
 app_stopped=0
 timer_paused=0
+memory_changed=0
+original_limits=$(sudo docker inspect --format '{{.HostConfig.Memory}} {{.HostConfig.MemorySwap}}' "$postgres")
+read -r original_memory original_swap <<< "$original_limits"
 resume() {
   result=$?
   trap - EXIT
+  if [ "$memory_changed" -eq 1 ]; then
+    phase restoring-database-memory-limit
+    if ! sudo docker update --memory="$original_memory" --memory-swap="$original_swap" "$postgres"; then
+      result=1
+    fi
+  fi
   if [ "$app_stopped" -eq 1 ]; then
     phase restarting-application
     if ! sudo docker start "$app"; then
@@ -87,6 +96,12 @@ if [ "$(sudo docker inspect --format '{{.State.Running}}' rparadise-recording-ba
 fi
 app_stopped=1
 sudo docker stop --time 30 "$app"
+
+# The million-row merge exceeded 768 MiB in the constrained rehearsal. The app
+# is stopped first to leave host headroom; restore the original limits on exit.
+phase increasing-maintenance-memory
+memory_changed=1
+sudo docker update --memory=2g --memory-swap=2g "$postgres"
 
 phase backing-up-application-tables
 sudo docker exec "$postgres" pg_dump -U radioparadise -d radioparadise -Fc \
