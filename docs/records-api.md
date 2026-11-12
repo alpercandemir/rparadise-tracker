@@ -135,8 +135,7 @@ For `timeSource=observed`, `playedAt` means first observed by the tracker, whose
 normal polling interval is 30 seconds. For `timeSource=broadcast`, it is the archived
 RP broadcast instant. Imported rows carry a unique `rp_source_key`; original
 observation IDs and timestamps remain intact. The local historical merge reconciles
-overlap before adding rows and retains ambiguous source records for review.
-See [the local merge runbook](rp-history-real-table-merge.md). Downtime may leave gaps.
+overlap before adding rows. Downtime may leave gaps.
 An ongoing track is deduplicated across application restarts via its latest
 persisted channel event. Full replays during downtime cannot be inferred when
 the same track is still current after recovery. Each song's count equals its
