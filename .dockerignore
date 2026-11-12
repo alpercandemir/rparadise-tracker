@@ -8,6 +8,7 @@
 .env
 .env.*
 .secrets
+data/rp-history
 observability
 **/.DS_Store
 **/node_modules

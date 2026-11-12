@@ -27,4 +27,8 @@ replay_pid*
 !.env.*.example
 .secrets/
 
+# Downloaded public broadcast history; generated locally, never committed.
+/data/rp-history/
+/scripts/__pycache__/
+
 # Keep Maven wrapper scripts and .mvn/wrapper/ configuration in Git.

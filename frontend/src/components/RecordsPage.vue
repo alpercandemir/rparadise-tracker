@@ -4,7 +4,7 @@
       <div>
         <p class="eyebrow">YOUR MUSIC ARCHIVE</p>
         <h2 id="records-title">{{ unified ? 'Songs' : 'Records' }}</h2>
-        <p class="description">{{ unified ? 'One entry per song across all channels, with combined listening statistics.' : 'Explore channel-specific tracks and every observed play.' }}</p>
+        <p class="description">{{ unified ? 'One entry per song across all channels, with combined playback statistics.' : 'Explore channel-specific tracks and every stored play.' }}</p>
       </div>
       <button class="control secondary" @click="loadPage" :disabled="loading">Refresh</button>
     </div>
@@ -17,12 +17,12 @@
       </button>
     </div>
 
-    <p v-if="unified" class="history-note library-note">Songs with the same artist, title, and album are combined. Different albums remain separate. Plays and first/last observed times cover all channels.</p>
+    <p v-if="unified" class="history-note library-note">Songs with the same artist, title, and album are combined. Different albums remain separate. Plays and first/last played times cover all channels.</p>
 
     <p v-if="state.tab === 'plays'" class="history-note">
       <template v-if="page.historyStartedAt">History available since {{ localTime(page.historyStartedAt) }} ({{ clientTimeZone }}).</template>
-      <template v-else>Playback history begins with the first observed play after collection starts.</template>
-      Times show when this tracker first observed a song, within its 30-second polling interval. Earlier broadcasts are not reconstructed.
+      <template v-else>No playback history is stored yet.</template>
+      Historical entries use Radio Paradise broadcast times. Tracker observations use the first observation time, within the 30-second polling interval. The time source is shown for each entry.
     </p>
 
     <form class="filters" @submit.prevent="applyFilters">
@@ -71,9 +71,10 @@
           <thead><tr>
             <th scope="col" class="cover-cell">Cover</th>
             <th v-for="column in columns" :key="column.key" scope="col" :aria-sort="ariaSort(column.key)">
-              <button class="sort-button" @click="sortBy(column.key)">
+              <button v-if="column.sortable !== false" class="sort-button" @click="sortBy(column.key)">
                 {{ column.label }} <span aria-hidden="true">{{ state.sort === column.key ? (state.direction === 'asc' ? '↑' : '↓') : '↕' }}</span>
               </button>
+              <span v-else>{{ column.label }}</span>
             </th>
           </tr></thead>
           <tbody>
@@ -87,6 +88,7 @@
                 <button v-if="column.key === 'title'" class="song-link" @click="$emit('select-song', row)">{{ row.title }}</button>
                 <span v-else-if="column.key === 'channel'" class="channel-label" :style="{ color: CHANNELS[row.channel]?.color }">{{ CHANNELS[row.channel]?.name || row.channel }}</span>
                 <time v-else-if="column.kind === 'date'" :datetime="row[column.key]" :title="row[column.key]">{{ localTime(row[column.key]) }}</time>
+                <span v-else-if="column.key === 'timeSource'">{{ row.timeSource === 'broadcast' ? 'RP broadcast' : 'Tracker observation' }}</span>
                 <template v-else>{{ row[column.key] ?? '—' }}</template>
               </td>
             </tr>
@@ -135,7 +137,8 @@ const columns = computed(() => {
     ? metadataColumns.filter(column => column.key !== 'channel').map(column => column.key === 'title' ? { ...column, label: 'Song' } : column)
     : metadataColumns
   return state.value.tab === 'plays'
-    ? [{ key: 'playedAt', label: 'Observed at', kind: 'date' }, ...metadata]
+    ? [{ key: 'playedAt', label: 'Played at', kind: 'date' }, ...metadata,
+      { key: 'timeSource', label: 'Time source', sortable: false }]
     : [...metadata, { key: 'firstPlayed', label: 'First played', kind: 'date' },
       { key: 'lastPlayed', label: 'Last played', kind: 'date' }, { key: 'playCount', label: 'Plays' }]
 })

@@ -41,6 +41,10 @@ public class PlaybackEvent {
     @Column(nullable = false, updatable = false)
     private String channel;
 
+    // Keep the legacy column; rpSourceKey distinguishes broadcast time from observation time.
     @Column(name = "observed_at", nullable = false, updatable = false)
     private Instant observedAt;
+
+    @Column(name = "rp_source_key", length = 64, updatable = false)
+    private String rpSourceKey;
 }

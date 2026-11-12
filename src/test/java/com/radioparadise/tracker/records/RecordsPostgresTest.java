@@ -68,6 +68,22 @@ class RecordsPostgresTest {
     }
 
     @Test
+    void playbackHistoryDistinguishesBroadcastTimesFromTrackerObservations() {
+        Song track = songs.save(song("Archived song", "0"));
+        Instant broadcastAt = Instant.parse("2024-01-02T10:20:30Z");
+        plays.save(PlaybackEvent.builder().song(track).channel("0")
+                .observedAt(broadcastAt).rpSourceKey("a".repeat(64)).build());
+        plays.save(PlaybackEvent.builder().song(track).channel("0")
+                .observedAt(broadcastAt.plusSeconds(300)).build());
+
+        Map<?, ?> page = get("/api/records/plays?direction=asc");
+
+        assertThat(items(page).get(0).get("timeSource")).isEqualTo("broadcast");
+        assertThat(items(page).get(0).get("playedAt")).isEqualTo(broadcastAt.toString());
+        assertThat(items(page).get(1).get("timeSource")).isEqualTo("observed");
+    }
+
+    @Test
     void libraryCombinesChannelStatisticsWithoutChangingTracksOrPlays() {
         Song main = song("Shared", "0");
         main.setPlayCount(Integer.MAX_VALUE);

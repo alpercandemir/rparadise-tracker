@@ -15,8 +15,10 @@ The channel-independent song library is at `/#/songs`.
   is needed, and channel track rows and playback events remain intact.
 - `GET /api/records/tracks`: one row per artist/title/album/channel combination,
   with all stored track metadata, `id`, `firstPlayed`, `lastPlayed`, `playCount`.
-- `GET /api/records/plays`: one row per newly observed play, with track metadata,
-  event `id`, `songId`, and `playedAt`. No historical timestamps are fabricated.
+- `GET /api/records/plays`: one row per stored playback, with track metadata,
+  event `id`, `songId`, `playedAt`, and `timeSource`. `timeSource` is `observed`
+  for tracker observations and `broadcast` for imported RP broadcasts. Historical
+  timestamps come from the broadcaster, not the import time.
 
 All three return:
 
@@ -129,8 +131,12 @@ concurrent build leaves an invalid index, `IF NOT EXISTS` will skip it; inspect
 the failure and remove that invalid index with `DROP INDEX CONCURRENTLY` before
 retrying. See the [index review](database-index-review.md) for the query analysis.
 
-`playedAt` means first observed by the tracker, whose normal polling interval is
-30 seconds; it is not an exact broadcaster start time. Downtime may leave gaps.
+For `timeSource=observed`, `playedAt` means first observed by the tracker, whose
+normal polling interval is 30 seconds. For `timeSource=broadcast`, it is the archived
+RP broadcast instant. Imported rows carry a unique `rp_source_key`; original
+observation IDs and timestamps remain intact. The local historical merge reconciles
+overlap before adding rows and retains ambiguous source records for review.
+See [the local merge runbook](rp-history-real-table-merge.md). Downtime may leave gaps.
 An ongoing track is deduplicated across application restarts via its latest
 persisted channel event. Full replays during downtime cannot be inferred when
 the same track is still current after recovery. Each song's count equals its

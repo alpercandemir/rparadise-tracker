@@ -27,6 +27,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: ./mvnw -B -ntp verify
       - run: bash scripts/test-records-postgres.sh
+      - run: python3 -m unittest discover -s scripts -p 'test_archive_rp_history.py' -v
+      - run: bash scripts/test-import-rp-history-postgres.sh
       - run: npm ci --prefix frontend
       - run: npm --prefix frontend test
       - run: npm --prefix frontend run build
