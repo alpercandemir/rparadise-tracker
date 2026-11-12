@@ -17,8 +17,8 @@
             <dl>
               <div v-if="details?.durationSeconds"><dt>Duration</dt><dd>{{ duration(details.durationSeconds) }}</dd></div>
               <div><dt>Tracked plays</dt><dd>{{ track.playCount ?? '—' }}</dd></div>
-              <div><dt>First observed</dt><dd>{{ localTime(track.firstPlayed) }}</dd></div>
-              <div><dt>Last observed</dt><dd>{{ localTime(track.lastPlayed) }}</dd></div>
+              <div><dt>First played</dt><dd>{{ localTime(track.firstPlayed) }}</dd></div>
+              <div><dt>Last played</dt><dd>{{ localTime(track.lastPlayed) }}</dd></div>
             </dl>
             <nav class="listening-links" aria-label="Find this recording on music services">
               <a v-for="link in links" :key="link.provider" :href="link.url" :aria-label="link.label"
