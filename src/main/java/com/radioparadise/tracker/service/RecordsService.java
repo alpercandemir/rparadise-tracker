@@ -221,6 +221,12 @@ public class RecordsService {
                        max(s.last_played) AS last_played, sum(s.play_count) AS play_count
                 FROM song s
                 """ + filter + " GROUP BY s.artist, s.title, s.album";
+        if (query.newDiscoveries()) {
+            // Filter after grouping: a new channel appearance must not rediscover an old song.
+            // Hours keep this an absolute 30-day window even across daylight-saving changes.
+            grouped += " HAVING min(s.first_played) BETWEEN "
+                    + "CURRENT_TIMESTAMP - INTERVAL '720 hours' AND CURRENT_TIMESTAMP";
+        }
         var jdbc = new NamedParameterJdbcTemplate(jdbcTemplate);
         Map<String, Object> parameters = new HashMap<>();
         if (matchingSongIds != null) {

@@ -10,11 +10,13 @@ export function parseRecordsHash(hash) {
     const page = Number(params.get('page') || 0)
     const size = Number(params.get('size') || 25)
     const sort = params.get('sort')
+    const discovery = tab === 'songs' && params.get('discovery') === '30d' ? '30d' : ''
     return {
         tab,
         page: Number.isInteger(page) && page >= 0 && page <= 1000000 ? page : 0,
         size: [25, 50, 100].includes(size) ? size : 25,
-        sort: sorts[tab].includes(sort) ? sort : tab === 'plays' ? 'playedAt' : 'lastPlayed',
+        sort: sorts[tab].includes(sort) ? sort : tab === 'plays' ? 'playedAt' : discovery ? 'firstPlayed' : 'lastPlayed',
+        discovery,
         direction: params.get('direction') === 'asc' ? 'asc' : 'desc',
         q: (params.get('q') || '').slice(0, 200),
         channel: tab !== 'songs' && ['0', '1', '2'].includes(params.get('channel')) ? params.get('channel') : '',
@@ -38,6 +40,7 @@ export function updateRecordsState(state, patch) {
         next.direction = 'desc'
         next.from = ''
         next.to = ''
+        next.discovery = ''
     }
     return next
 }

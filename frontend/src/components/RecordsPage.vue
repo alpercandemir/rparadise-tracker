@@ -3,8 +3,8 @@
     <div class="records-heading">
       <div>
         <p class="eyebrow">YOUR MUSIC ARCHIVE</p>
-        <h2 id="records-title">{{ unified ? 'Songs' : 'Records' }}</h2>
-        <p class="description">{{ unified ? 'One entry per song across all channels, with combined playback statistics.' : 'Explore channel-specific tracks and every stored play.' }}</p>
+        <h2 id="records-title">{{ isDiscoveries ? 'New Discoveries' : unified ? 'Songs' : 'Records' }}</h2>
+        <p class="description">{{ isDiscoveries ? 'Songs first discovered by this tracker in the last 30 days, across all channels.' : unified ? 'One entry per song across all channels, with combined playback statistics.' : 'Explore channel-specific tracks and every stored play.' }}</p>
       </div>
       <button class="control secondary" @click="loadPage" :disabled="loading">Refresh</button>
     </div>
@@ -17,7 +17,7 @@
       </button>
     </div>
 
-    <p v-if="unified" class="history-note library-note">Songs with the same artist, title, and album are combined. Different albums remain separate. Plays and first/last played times cover all channels.</p>
+    <p v-if="unified" class="history-note library-note">Songs with the same artist, title, and album are combined. Different albums remain separate. Plays and first/last played times cover all channels.<template v-if="isDiscoveries"> Discovery is the earliest tracked play, not the release date.</template></p>
 
     <p v-if="state.tab === 'plays'" class="history-note">
       <template v-if="page.historyStartedAt">History available since {{ localTime(page.historyStartedAt) }} ({{ clientTimeZone }}).</template>
@@ -28,6 +28,12 @@
     <form class="filters" @submit.prevent="applyFilters">
       <label class="search-field">Search
         <input v-model="draft.q" maxlength="200" type="search" placeholder="Track, artist, or album" />
+      </label>
+      <label v-if="unified">Discovery
+        <select v-model="draft.discovery">
+          <option value="">Any time</option>
+          <option value="30d">New in the last 30 days</option>
+        </select>
       </label>
       <label v-if="!unified">Channel
         <select v-model="draft.channel">
@@ -121,7 +127,8 @@ const recordTabs = [{ id: 'tracks', label: 'All Tracks' }, { id: 'plays', label:
 const clientTimeZone = getClientTimeZone()
 const localTime = value => formatRecordTime(value, clientTimeZone)
 const state = ref(parseRecordsHash(window.location.hash))
-const draft = reactive({ q: state.value.q, channel: state.value.channel, from: state.value.from, to: state.value.to })
+const isDiscoveries = computed(() => props.unified && state.value.discovery === '30d')
+const draft = reactive({ q: state.value.q, discovery: state.value.discovery, channel: state.value.channel, from: state.value.from, to: state.value.to })
 const page = ref({ items: [], page: state.value.page, size: state.value.size, totalElements: 0, totalPages: 0, historyStartedAt: null })
 const loading = ref(false)
 const error = ref('')
@@ -139,12 +146,12 @@ const columns = computed(() => {
   return state.value.tab === 'plays'
     ? [{ key: 'playedAt', label: 'Played at', kind: 'date' }, ...metadata,
       { key: 'timeSource', label: 'Time source', sortable: false }]
-    : [...metadata, { key: 'firstPlayed', label: 'First played', kind: 'date' },
+    : [...metadata, { key: 'firstPlayed', label: isDiscoveries.value ? 'Discovered' : 'First played', kind: 'date' },
       { key: 'lastPlayed', label: 'Last played', kind: 'date' }, { key: 'playCount', label: 'Plays' }]
 })
 
 function syncDraft() {
-  for (const key of ['q', 'channel', 'from', 'to']) draft[key] = state.value[key]
+  for (const key of ['q', 'discovery', 'channel', 'from', 'to']) draft[key] = state.value[key]
 }
 
 function change(patch) {
@@ -160,10 +167,12 @@ function applyFilters() {
     error.value = 'From date must not be after To date.'
     return
   }
-  change({ ...draft })
+  const ordering = draft.discovery !== state.value.discovery
+    ? { sort: draft.discovery ? 'firstPlayed' : 'lastPlayed', direction: 'desc' } : {}
+  change({ ...draft, ...ordering })
 }
 
-function clearFilters() { change({ q: '', channel: '', from: '', to: '' }) }
+function clearFilters() { change({ q: '', discovery: '', channel: '', from: '', to: '' }) }
 function sortBy(sort) { change({ sort, direction: state.value.sort === sort && state.value.direction === 'asc' ? 'desc' : 'asc' }) }
 function ariaSort(key) { return state.value.sort === key ? (state.value.direction === 'asc' ? 'ascending' : 'descending') : 'none' }
 
@@ -177,6 +186,7 @@ async function loadPage() {
   if (tab !== 'plays') { delete params.from; delete params.to }
   else params.timeZone = clientTimeZone
   if (tab === 'songs') delete params.channel
+  else delete params.discovery
   try {
     const data = await radioParadiseAPI.getRecordsPage(tab, params, controller.signal)
     if (current === request) page.value = data

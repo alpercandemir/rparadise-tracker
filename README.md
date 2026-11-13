@@ -47,6 +47,7 @@ A Java 25 + Spring Boot application with a Vue 3 dashboard that continuously tra
 
 - **Dashboard** (`/#/`): see the latest observed song for each channel. Decade track lists use the 500 most recently played channel tracks. Total Tracks, channel/decade chart counts, and Most Played cover the full archive.
 - **Songs** (`/#/songs`): browse all songs independently of channels. Matching artist/title/album entries appear once, with combined play counts and earliest/latest observed times. Search, sort, and paginate the full library; different albums remain separate.
+- **New Discoveries**: the dashboard previews the six newest songs first observed in the last 30 days. “View all discoveries” opens `/#/songs?discovery=30d`, with search, sorting, and pagination. Discovery uses the earliest tracked play across channels, not the release date; a later appearance on another channel does not make an old song new again.
 - **Records → All Tracks** (`/#/records`): search by track, artist, or album; filter by channel; sort columns; and choose 25, 50, or 100 rows per page.
 - **Records → Playback History** (`/#/records?tab=plays`): browse individual observed plays and filter by calendar dates in your timezone. Filters, sorting, and pagination are preserved in the URL.
 - **Song details**: select artwork or a title to see larger artwork, listening statistics, duration, and available lyrics from Radio Paradise or LRCLIB. Songs retains combined statistics; Records and dashboard tracks show channel-specific statistics.
@@ -152,6 +153,7 @@ For the existing Oracle VM, GHCR image deployment, production approval, and roll
 - `GET /api/songs` - List all tracked songs
 - `GET /api/songs/dashboard` - Latest 500 tracks (`lastPlayed` and ID descending), plus all-time total, channel counts, and decade counts; cached for 30 seconds
 - `GET /api/songs/library` - Search, sort, and paginate songs combined across channels by artist/title/album, with aggregate listening statistics
+  - Optional `discovery=30d` restricts results to an inclusive rolling 720-hour window ending at query time and defaults to `firstPlayed` descending. Filtering happens after channel aggregation; counts cover the full matching library. Results retain the 30-second server cache and `Cache-Control: no-store` response header.
 - `GET /api/songs/current` - Latest observed song per channel, from our database
 - `GET /api/songs/{id}` - Song details and on-demand, persisted lyrics metadata
 - `GET /api/songs/recent` - List latest 20 songs by `lastPlayed`

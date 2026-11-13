@@ -19,7 +19,8 @@ public record RecordsQuery(
         String channel,
         LocalDate from,
         LocalDate to,
-        ZoneId timeZone) {
+        ZoneId timeZone,
+        boolean newDiscoveries) {
     private static final Set<String> TRACK_SORTS =
             Set.of(
                     "id",
@@ -35,7 +36,7 @@ public record RecordsQuery(
             Set.of("id", "title", "artist", "album", "year", "channel", "playedAt");
 
     public static RecordsQuery parseLibrary(Map<String, String> parameters) {
-        RecordsQuery query = parse(parameters, false);
+        RecordsQuery query = parse(parameters, false, true);
         if (!query.channel().isEmpty()) {
             throw new IllegalArgumentException("The song library combines all channels");
         }
@@ -46,6 +47,11 @@ public record RecordsQuery(
     }
 
     public static RecordsQuery parse(Map<String, String> parameters, boolean history) {
+        return parse(parameters, history, false);
+    }
+
+    private static RecordsQuery parse(
+            Map<String, String> parameters, boolean history, boolean library) {
         int page = parseInteger(parameters, "page", 0);
         int size = parseInteger(parameters, "size", 25);
         if (page < 0 || page > 1_000_000) {
@@ -54,7 +60,12 @@ public record RecordsQuery(
         if (!Set.of(25, 50, 100).contains(size)) {
             throw new IllegalArgumentException("size must be 25, 50, or 100");
         }
-        String sort = parseSort(parameters, history);
+        String discovery = library ? parameters.getOrDefault("discovery", "") : "";
+        if (!discovery.isEmpty() && !discovery.equals("30d")) {
+            throw new IllegalArgumentException("discovery must be 30d");
+        }
+        boolean newDiscoveries = discovery.equals("30d");
+        String sort = parseSort(parameters, history, newDiscoveries);
         Sort.Direction direction = parseDirection(parameters);
         String search = parameters.getOrDefault("q", "").trim();
         if (search.length() > 200) {
@@ -70,11 +81,14 @@ public record RecordsQuery(
             throw new IllegalArgumentException("from must not be after to");
         }
         ZoneId timeZone = parseTimeZone(parameters);
-        return new RecordsQuery(page, size, sort, direction, search, channel, from, to, timeZone);
+        return new RecordsQuery(page, size, sort, direction, search, channel, from, to,
+                timeZone, newDiscoveries);
     }
 
-    private static String parseSort(Map<String, String> parameters, boolean history) {
-        String sort = parameters.getOrDefault("sort", history ? "playedAt" : "lastPlayed");
+    private static String parseSort(
+            Map<String, String> parameters, boolean history, boolean newDiscoveries) {
+        String defaultSort = history ? "playedAt" : newDiscoveries ? "firstPlayed" : "lastPlayed";
+        String sort = parameters.getOrDefault("sort", defaultSort);
         Set<String> supportedSorts = history ? PLAY_SORTS : TRACK_SORTS;
         if (!supportedSorts.contains(sort)) {
             throw new IllegalArgumentException("Unsupported sort field: " + sort);
