@@ -7,7 +7,7 @@ import { radioParadiseAPI } from './api.js'
 
 test('songs URL preserves browsing state and excludes channel and history filters', () => {
     const state = parseRecordsHash('#/songs?q=Muse&page=2&size=50&sort=playCount&direction=asc&channel=2&from=2026-11-01&tab=plays')
-    assert.deepEqual(state, { tab: 'songs', page: 2, size: 50, sort: 'playCount', direction: 'asc', q: 'Muse', channel: '', from: '', to: '' })
+    assert.deepEqual(state, { tab: 'songs', page: 2, size: 50, sort: 'playCount', discovery: '', direction: 'asc', q: 'Muse', channel: '', from: '', to: '' })
     assert.ok(recordsHash(state).startsWith('#/songs?'))
     assert.deepEqual(parseRecordsHash(recordsHash(state)), state)
     assert.equal(parseRecordsHash('#/songs?sort=channel').sort, 'lastPlayed')
@@ -16,7 +16,7 @@ test('songs URL preserves browsing state and excludes channel and history filter
 
 test('records URL preserves filters, ordering, and page across refresh', () => {
     const state = parseRecordsHash('#/records?tab=plays&page=2&size=50&sort=artist&direction=asc&q=King%20Buffalo&channel=2&from=2026-11-01&to=2026-11-02')
-    assert.deepEqual(state, { tab: 'plays', page: 2, size: 50, sort: 'artist', direction: 'asc', q: 'King Buffalo', channel: '2', from: '2026-11-01', to: '2026-11-02' })
+    assert.deepEqual(state, { tab: 'plays', page: 2, size: 50, sort: 'artist', discovery: '', direction: 'asc', q: 'King Buffalo', channel: '2', from: '2026-11-01', to: '2026-11-02' })
     assert.deepEqual(parseRecordsHash(recordsHash(state)), state)
 })
 
@@ -28,6 +28,21 @@ test('unsupported URL values get safe defaults', () => {
     assert.equal(state.sort, 'lastPlayed')
     assert.equal(state.direction, 'desc')
     assert.equal(state.channel, '')
+})
+
+test('discoveries survive search, sorting, paging and URL round trips', () => {
+    const state = parseRecordsHash('#/songs?discovery=30d')
+    assert.equal(state.discovery, '30d')
+    assert.equal(state.sort, 'firstPlayed')
+    assert.equal(state.direction, 'desc')
+    const filtered = updateRecordsState(state, { q: 'Muse', sort: 'playCount' })
+    const paged = updateRecordsState(filtered, { page: 2 })
+    assert.deepEqual(parseRecordsHash(recordsHash(paged)), paged)
+    assert.equal(paged.discovery, '30d')
+    assert.equal(updateRecordsState(paged, { discovery: '' }).page, 0)
+    assert.equal(updateRecordsState(paged, { tab: 'plays' }).discovery, '')
+    assert.equal(parseRecordsHash('#/records?discovery=30d').discovery, '')
+    assert.equal(parseRecordsHash('#/songs?discovery=7d').discovery, '')
 })
 
 test('filter and sort changes reset pagination; tabs reset incompatible sorting and dates', () => {

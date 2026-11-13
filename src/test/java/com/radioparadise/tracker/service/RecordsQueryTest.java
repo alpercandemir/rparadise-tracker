@@ -13,6 +13,21 @@ import org.springframework.data.domain.Sort;
 
 class RecordsQueryTest {
     @Test
+    void discoveriesDefaultToNewestFirstAndRemainSeparateCacheKeys() {
+        RecordsQuery discoveries = RecordsQuery.parseLibrary(Map.of("discovery", "30d"));
+
+        assertThat(discoveries.newDiscoveries()).isTrue();
+        assertThat(discoveries.pageable(false).getSort())
+                .containsExactly(Sort.Order.desc("firstPlayed"), Sort.Order.desc("id"));
+        assertThat(discoveries).isNotEqualTo(RecordsQuery.parseLibrary(Map.of("sort", "firstPlayed")));
+        assertThat(RecordsQuery.parseLibrary(Map.of("discovery", "30d", "sort", "playCount")).sort())
+                .isEqualTo("playCount");
+        assertThat(RecordsQuery.parse(Map.of("discovery", "30d"), false).newDiscoveries()).isFalse();
+        assertThatThrownBy(() -> RecordsQuery.parseLibrary(Map.of("discovery", "7d")))
+                .hasMessage("discovery must be 30d");
+    }
+
+    @Test
     void libraryUsesTrackPaginationAndRejectsChannelSpecificQueries() {
         RecordsQuery query = RecordsQuery.parseLibrary(Map.of("sort", "playCount", "q", " Muse "));
 
