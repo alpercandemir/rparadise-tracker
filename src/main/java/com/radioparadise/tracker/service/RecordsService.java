@@ -93,7 +93,7 @@ public class RecordsService {
                         LANGUAGE sql
                         IMMUTABLE PARALLEL SAFE
                     AS $func$
-                        SELECT pg_catalog.trim(
+                        SELECT pg_catalog.btrim(
                             pg_catalog.regexp_replace(
                                 pg_catalog.regexp_replace(
                                     public.f_unaccent($1),
@@ -134,15 +134,15 @@ public class RecordsService {
                     AS $func$
                         WITH normalized AS (
                             SELECT
-                                pg_catalog.trim(public.f_unaccent($1)) AS norm_title,
-                                pg_catalog.trim(public.f_unaccent($2)) AS norm_artist,
-                                pg_catalog.trim(public.f_unaccent($3)) AS norm_album,
-                                pg_catalog.trim(pg_catalog.regexp_replace(public.f_unaccent($4), '\\s+', ' ', 'g')) AS norm_query,
+                                pg_catalog.btrim(public.f_unaccent($1)) AS norm_title,
+                                pg_catalog.btrim(public.f_unaccent($2)) AS norm_artist,
+                                pg_catalog.btrim(public.f_unaccent($3)) AS norm_album,
+                                pg_catalog.btrim(pg_catalog.regexp_replace(public.f_unaccent($4), '\\s+', ' ', 'g')) AS norm_query,
                                 public.f_compact_text($1) AS compact_title,
                                 public.f_compact_text($2) AS compact_artist,
                                 public.f_compact_text($3) AS compact_album,
                                 public.f_compact_text($4) AS compact_query,
-                                pg_catalog.array(
+                                ARRAY(
                                     SELECT DISTINCT w
                                     FROM pg_catalog.unnest(
                                         pg_catalog.regexp_split_to_array(public.f_unaccent($2), '[^a-z0-9]+')
@@ -150,7 +150,7 @@ public class RecordsService {
                                     ) AS w
                                     WHERE w <> ''
                                 ) AS artist_words,
-                                pg_catalog.array(
+                                ARRAY(
                                     SELECT DISTINCT w
                                     FROM pg_catalog.unnest(
                                         pg_catalog.regexp_split_to_array(public.f_unaccent($1), '[^a-z0-9]+')
@@ -158,7 +158,7 @@ public class RecordsService {
                                     ) AS w
                                     WHERE w <> ''
                                 ) AS title_words,
-                                pg_catalog.array(
+                                ARRAY(
                                     SELECT DISTINCT w
                                     FROM pg_catalog.unnest(
                                         pg_catalog.regexp_split_to_array(public.f_unaccent($3), '[^a-z0-9]+')
@@ -229,38 +229,38 @@ public class RecordsService {
                                         SELECT 1 FROM pg_catalog.unnest(n.artist_words) AS w
                                         WHERE pg_catalog.length(w) >= 3
                                           AND public.levenshtein_less_equal(w, t.term, 1) <= 1
-                                    ) THEN 60 - pg_catalog.round(
+                                    ) THEN 60 - (
                                         public.strict_word_similarity(t.term, n.norm_artist) * 15
                                     )::integer
                                     WHEN EXISTS (
                                         SELECT 1 FROM pg_catalog.unnest(n.title_words) AS w
                                         WHERE pg_catalog.length(w) >= 3
                                           AND public.levenshtein_less_equal(w, t.term, 1) <= 1
-                                    ) THEN 70 - pg_catalog.round(
+                                    ) THEN 70 - (
                                         public.strict_word_similarity(t.term, n.norm_title) * 15
                                     )::integer
                                     WHEN EXISTS (
                                         SELECT 1 FROM pg_catalog.unnest(n.album_words) AS w
                                         WHERE pg_catalog.length(w) >= 3
                                           AND public.levenshtein_less_equal(w, t.term, 1) <= 1
-                                    ) THEN 85 - pg_catalog.round(
+                                    ) THEN 85 - (
                                         public.strict_word_similarity(t.term, n.norm_album) * 15
                                     )::integer
                                     WHEN EXISTS (
                                         SELECT 1 FROM pg_catalog.unnest(n.artist_words || n.title_words) AS w
                                         WHERE pg_catalog.length(w) >= 3
                                           AND public.levenshtein_less_equal(w, t.term, 2) <= 2
-                                    ) THEN 115 - pg_catalog.round(
+                                    ) THEN 115 - (
                                         public.strict_word_similarity(t.term, n.norm_artist || ' ' || n.norm_title) * 15
                                     )::integer
                                     WHEN EXISTS (
                                         SELECT 1 FROM pg_catalog.unnest(n.album_words) AS w
                                         WHERE pg_catalog.length(w) >= 3
                                           AND public.levenshtein_less_equal(w, t.term, 2) <= 2
-                                    ) THEN 135 - pg_catalog.round(
+                                    ) THEN 135 - (
                                         public.strict_word_similarity(t.term, n.norm_album) * 15
                                     )::integer
-                                    ELSE 170 - pg_catalog.round(
+                                    ELSE 170 - (
                                         public.strict_word_similarity(t.term, public.f_song_search_text($1, $2, $3)) * 20
                                     )::integer
                                 END AS fuzzy_penalty
@@ -298,9 +298,9 @@ public class RecordsService {
                                     THEN 55
                                 WHEN COALESCE((SELECT pg_catalog.max(literal_tier) FROM term_scores), 9) <= 8
                                     THEN 100
-                                        + (SELECT pg_catalog.max(literal_tier) * 30 + pg_catalog.round(pg_catalog.avg(literal_tier) * 10)::integer FROM term_scores)
+                                        + (SELECT pg_catalog.max(literal_tier) * 30 + (pg_catalog.avg(literal_tier) * 10)::integer FROM term_scores)
                                 ELSE 1000
-                                    + COALESCE((SELECT pg_catalog.max(fuzzy_penalty) * 10 + pg_catalog.round(pg_catalog.avg(fuzzy_penalty))::integer FROM term_scores), 0)
+                                    + COALESCE((SELECT pg_catalog.max(fuzzy_penalty) * 10 + pg_catalog.avg(fuzzy_penalty)::integer FROM term_scores), 0)
                             END
                         FROM normalized n
                     $func$
