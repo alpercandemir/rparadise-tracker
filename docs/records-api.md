@@ -42,7 +42,7 @@ current filters; null until the first event, and always null for tracks and the 
 | --- | --- |
 | `page` | Zero-based page, default 0, maximum 1000000 |
 | `size` | 25 (default), 50, or 100 |
-| `sort` | Track column, default `lastPlayed`; history defaults to `playedAt` |
+| `sort` | Track column, default `lastPlayed` (or `relevance` on `/api/songs/library` when `q` is non-empty); history defaults to `playedAt` |
 | `direction` | `asc` or `desc` (default) |
 | `q` | Space-separated terms across title, artist, and album; case- and accent-insensitive; maximum 200 characters |
 | `channel` | `0` Main Mix, `1` Mellow Mix, `2` Rock Mix; omitted/empty means all |
@@ -53,10 +53,17 @@ Track sort fields: `id`, `title`, `artist`, `album`, `year`, `channel`,
 `firstPlayed`, `lastPlayed`, `playCount`.
 
 Play sort fields: `id`, `title`, `artist`, `album`, `year`, `channel`, `playedAt`.
-Library queries use the track parameters and sort fields except `channel`:
-nonempty channel filters and sorting by channel return HTTP 400. Library search
-uses the same literal-first, accent-insensitive and typo-tolerant rules. The
-library has a separate 128-query cache with a 30-second TTL and no-store responses.
+Library queries use the track parameters and sort fields except `channel`, plus
+`relevance`: nonempty channel filters and sorting by channel return HTTP 400.
+When `q` is non-empty and `sort` is omitted, library queries default to
+`relevance`, ranking exact artist and song title matches first, whole-word and
+prefix matches next, substring matches after that, and closer typo/phonetic
+corrections ahead of weaker ones, with `lastPlayed` and `id` breaking ties within
+each relevance group. Column sorting remains available.
+Library search uses the same literal-first, accent-insensitive and typo-tolerant
+rules, and recognizes artist names typed without punctuation (such as `ACDC` for
+`AC/DC` and `REM` for `R.E.M.`). The library has a separate 128-query cache with
+a 30-second TTL and no-store responses.
 ID breaks sorting ties. Paging reflects current data rather than a frozen
 snapshot; a new play can change totals/order between requests. Invalid supported
 parameter values return HTTP 400 with an `error` message. An out-of-range page

@@ -15,8 +15,13 @@ class RecordsQueryTest {
     @Test
     void libraryUsesTrackPaginationAndRejectsChannelSpecificQueries() {
         RecordsQuery query = RecordsQuery.parseLibrary(Map.of("sort", "playCount", "q", " Muse "));
+        RecordsQuery defaultBrowsing = RecordsQuery.parseLibrary(Map.of());
+        RecordsQuery defaultSearching = RecordsQuery.parseLibrary(Map.of("q", " Sade "));
 
         assertThat(query.search()).isEqualTo("Muse");
+        assertThat(query.sort()).isEqualTo("playCount");
+        assertThat(defaultBrowsing.sort()).isEqualTo("lastPlayed");
+        assertThat(defaultSearching.sort()).isEqualTo("relevance");
         assertThat(query.pageable(false).getSort())
                 .containsExactly(Sort.Order.desc("playCount"), Sort.Order.desc("id"));
         assertThatThrownBy(() -> RecordsQuery.parseLibrary(Map.of("channel", "1")))

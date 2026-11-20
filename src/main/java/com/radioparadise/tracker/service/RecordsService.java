@@ -37,6 +37,13 @@ public class RecordsService {
     private static final String LITERAL_TERM_CONDITION =
             "public.f_song_search_text(s.title, s.artist, s.album) "
                     + "LIKE public.f_unaccent(?) ESCAPE '\\'";
+    private static final String LITERAL_OR_COMPACT_ARTIST_TERM_CONDITION =
+            """
+            (
+                public.f_song_search_text(s.title, s.artist, s.album) LIKE public.f_unaccent(?) ESCAPE '\\'
+                OR public.f_compact_text(s.artist) LIKE '%' || public.f_compact_text(?) || '%'
+            )
+            """;
     private static final String FUZZY_TERM_CONDITION =
             """
             (
@@ -78,6 +85,224 @@ public class RecordsService {
                         IMMUTABLE PARALLEL SAFE
                     AS $func$
                         SELECT public.f_unaccent(COALESCE($1, '') || ' ' || COALESCE($2, '') || ' ' || COALESCE($3, ''))
+                    $func$
+                    """,
+                    """
+                    CREATE OR REPLACE FUNCTION public.f_compact_text(text)
+                        RETURNS text
+                        LANGUAGE sql
+                        IMMUTABLE PARALLEL SAFE
+                    AS $func$
+                        SELECT pg_catalog.trim(
+                            pg_catalog.regexp_replace(
+                                pg_catalog.regexp_replace(
+                                    public.f_unaccent($1),
+                                    '[^a-z0-9\\s]+',
+                                    '',
+                                    'g'
+                                ),
+                                '\\s+',
+                                ' ',
+                                'g'
+                            )
+                        )
+                    $func$
+                    """,
+                    """
+                    CREATE OR REPLACE FUNCTION public.f_phonetic_skeleton(text)
+                        RETURNS text
+                        LANGUAGE sql
+                        IMMUTABLE PARALLEL SAFE
+                    AS $func$
+                        SELECT pg_catalog.regexp_replace(
+                            pg_catalog.replace(
+                                pg_catalog.translate(public.f_unaccent($1), 'y', 'i'),
+                                'ph',
+                                'f'
+                            ),
+                            '(.)\\1+',
+                            '\\1',
+                            'g'
+                        )
+                    $func$
+                    """,
+                    """
+                    CREATE OR REPLACE FUNCTION public.f_song_search_rank(text, text, text, text)
+                        RETURNS integer
+                        LANGUAGE sql
+                        IMMUTABLE PARALLEL SAFE
+                    AS $func$
+                        WITH normalized AS (
+                            SELECT
+                                pg_catalog.trim(public.f_unaccent($1)) AS norm_title,
+                                pg_catalog.trim(public.f_unaccent($2)) AS norm_artist,
+                                pg_catalog.trim(public.f_unaccent($3)) AS norm_album,
+                                pg_catalog.trim(pg_catalog.regexp_replace(public.f_unaccent($4), '\\s+', ' ', 'g')) AS norm_query,
+                                public.f_compact_text($1) AS compact_title,
+                                public.f_compact_text($2) AS compact_artist,
+                                public.f_compact_text($3) AS compact_album,
+                                public.f_compact_text($4) AS compact_query,
+                                pg_catalog.array(
+                                    SELECT DISTINCT w
+                                    FROM pg_catalog.unnest(
+                                        pg_catalog.regexp_split_to_array(public.f_unaccent($2), '[^a-z0-9]+')
+                                        || pg_catalog.regexp_split_to_array(public.f_compact_text($2), '\\s+')
+                                    ) AS w
+                                    WHERE w <> ''
+                                ) AS artist_words,
+                                pg_catalog.array(
+                                    SELECT DISTINCT w
+                                    FROM pg_catalog.unnest(
+                                        pg_catalog.regexp_split_to_array(public.f_unaccent($1), '[^a-z0-9]+')
+                                        || pg_catalog.regexp_split_to_array(public.f_compact_text($1), '\\s+')
+                                    ) AS w
+                                    WHERE w <> ''
+                                ) AS title_words,
+                                pg_catalog.array(
+                                    SELECT DISTINCT w
+                                    FROM pg_catalog.unnest(
+                                        pg_catalog.regexp_split_to_array(public.f_unaccent($3), '[^a-z0-9]+')
+                                        || pg_catalog.regexp_split_to_array(public.f_compact_text($3), '\\s+')
+                                    ) AS w
+                                    WHERE w <> ''
+                                ) AS album_words
+                        ),
+                        terms AS (
+                            SELECT
+                                raw_term,
+                                COALESCE(NULLIF(public.f_compact_text(raw_term), ''), raw_term) AS term
+                            FROM normalized n,
+                                 LATERAL pg_catalog.regexp_split_to_table(n.norm_query, '\\s+') AS raw_term
+                            WHERE raw_term <> ''
+                        ),
+                        term_scores AS (
+                            SELECT
+                                CASE
+                                    WHEN t.term = ANY(n.artist_words) THEN 1
+                                    WHEN t.term = ANY(n.title_words) THEN 2
+                                    WHEN t.term = ANY(n.album_words) THEN 3
+                                    WHEN EXISTS (
+                                        SELECT 1 FROM pg_catalog.unnest(n.artist_words) AS w
+                                        WHERE pg_catalog.strpos(w, t.term) = 1
+                                    ) THEN 4
+                                    WHEN EXISTS (
+                                        SELECT 1 FROM pg_catalog.unnest(n.title_words) AS w
+                                        WHERE pg_catalog.strpos(w, t.term) = 1
+                                    ) THEN 5
+                                    WHEN EXISTS (
+                                        SELECT 1 FROM pg_catalog.unnest(n.album_words) AS w
+                                        WHERE pg_catalog.strpos(w, t.term) = 1
+                                    ) THEN 6
+                                    WHEN pg_catalog.strpos(n.norm_artist, t.raw_term) > 0
+                                        OR pg_catalog.strpos(n.compact_artist, t.term) > 0
+                                        OR pg_catalog.strpos(n.norm_title, t.raw_term) > 0
+                                        OR pg_catalog.strpos(n.compact_title, t.term) > 0 THEN 7
+                                    WHEN pg_catalog.strpos(n.norm_album, t.raw_term) > 0
+                                        OR pg_catalog.strpos(n.compact_album, t.term) > 0 THEN 8
+                                    ELSE 9
+                                END AS literal_tier,
+                                CASE
+                                    WHEN t.term = ANY(n.artist_words) OR t.term = ANY(n.title_words) THEN 0
+                                    WHEN t.term = ANY(n.album_words) THEN 10
+                                    WHEN pg_catalog.strpos(n.norm_artist, t.raw_term) > 0
+                                        OR pg_catalog.strpos(n.compact_artist, t.term) > 0
+                                        OR pg_catalog.strpos(n.norm_title, t.raw_term) > 0
+                                        OR pg_catalog.strpos(n.compact_title, t.term) > 0
+                                        OR pg_catalog.strpos(n.norm_album, t.raw_term) > 0
+                                        OR pg_catalog.strpos(n.compact_album, t.term) > 0 THEN 20
+                                    WHEN EXISTS (
+                                        SELECT 1 FROM pg_catalog.unnest(n.artist_words) AS w
+                                        WHERE pg_catalog.length(w) >= 3
+                                          AND public.f_phonetic_skeleton(w) = public.f_phonetic_skeleton(t.term)
+                                    ) THEN 25
+                                    WHEN EXISTS (
+                                        SELECT 1 FROM pg_catalog.unnest(n.title_words) AS w
+                                        WHERE pg_catalog.length(w) >= 3
+                                          AND public.f_phonetic_skeleton(w) = public.f_phonetic_skeleton(t.term)
+                                    ) THEN 35
+                                    WHEN EXISTS (
+                                        SELECT 1 FROM pg_catalog.unnest(n.album_words) AS w
+                                        WHERE pg_catalog.length(w) >= 3
+                                          AND public.f_phonetic_skeleton(w) = public.f_phonetic_skeleton(t.term)
+                                    ) THEN 45
+                                    WHEN EXISTS (
+                                        SELECT 1 FROM pg_catalog.unnest(n.artist_words) AS w
+                                        WHERE pg_catalog.length(w) >= 3
+                                          AND public.levenshtein_less_equal(w, t.term, 1) <= 1
+                                    ) THEN 60 - pg_catalog.round(
+                                        public.strict_word_similarity(t.term, n.norm_artist) * 15
+                                    )::integer
+                                    WHEN EXISTS (
+                                        SELECT 1 FROM pg_catalog.unnest(n.title_words) AS w
+                                        WHERE pg_catalog.length(w) >= 3
+                                          AND public.levenshtein_less_equal(w, t.term, 1) <= 1
+                                    ) THEN 70 - pg_catalog.round(
+                                        public.strict_word_similarity(t.term, n.norm_title) * 15
+                                    )::integer
+                                    WHEN EXISTS (
+                                        SELECT 1 FROM pg_catalog.unnest(n.album_words) AS w
+                                        WHERE pg_catalog.length(w) >= 3
+                                          AND public.levenshtein_less_equal(w, t.term, 1) <= 1
+                                    ) THEN 85 - pg_catalog.round(
+                                        public.strict_word_similarity(t.term, n.norm_album) * 15
+                                    )::integer
+                                    WHEN EXISTS (
+                                        SELECT 1 FROM pg_catalog.unnest(n.artist_words || n.title_words) AS w
+                                        WHERE pg_catalog.length(w) >= 3
+                                          AND public.levenshtein_less_equal(w, t.term, 2) <= 2
+                                    ) THEN 115 - pg_catalog.round(
+                                        public.strict_word_similarity(t.term, n.norm_artist || ' ' || n.norm_title) * 15
+                                    )::integer
+                                    WHEN EXISTS (
+                                        SELECT 1 FROM pg_catalog.unnest(n.album_words) AS w
+                                        WHERE pg_catalog.length(w) >= 3
+                                          AND public.levenshtein_less_equal(w, t.term, 2) <= 2
+                                    ) THEN 135 - pg_catalog.round(
+                                        public.strict_word_similarity(t.term, n.norm_album) * 15
+                                    )::integer
+                                    ELSE 170 - pg_catalog.round(
+                                        public.strict_word_similarity(t.term, public.f_song_search_text($1, $2, $3)) * 20
+                                    )::integer
+                                END AS fuzzy_penalty
+                            FROM normalized n, terms t
+                        )
+                        SELECT
+                            CASE
+                                WHEN n.norm_query = '' THEN 0
+                                WHEN n.norm_artist = n.norm_query
+                                    OR (n.compact_query <> '' AND n.compact_artist = n.compact_query)
+                                    THEN 10
+                                WHEN n.norm_title = n.norm_query
+                                    OR (n.compact_query <> '' AND n.compact_title = n.compact_query)
+                                    THEN 15
+                                WHEN n.compact_query <> ''
+                                    AND (
+                                        n.compact_artist || ' ' || n.compact_title = n.compact_query
+                                        OR n.compact_title || ' ' || n.compact_artist = n.compact_query
+                                    )
+                                    THEN 20
+                                WHEN n.norm_album = n.norm_query
+                                    OR (n.compact_query <> '' AND n.compact_album = n.compact_query)
+                                    THEN 30
+                                WHEN n.compact_query <> ''
+                                    AND pg_catalog.strpos(n.compact_artist, n.compact_query || ' ') = 1
+                                    THEN 40
+                                WHEN n.compact_query <> ''
+                                    AND pg_catalog.strpos(n.compact_title, n.compact_query || ' ') = 1
+                                    THEN 45
+                                WHEN n.compact_query <> ''
+                                    AND pg_catalog.strpos(' ' || n.compact_artist || ' ', ' ' || n.compact_query || ' ') > 0
+                                    THEN 50
+                                WHEN n.compact_query <> ''
+                                    AND pg_catalog.strpos(' ' || n.compact_title || ' ', ' ' || n.compact_query || ' ') > 0
+                                    THEN 55
+                                WHEN COALESCE((SELECT pg_catalog.max(literal_tier) FROM term_scores), 9) <= 8
+                                    THEN 100
+                                        + (SELECT pg_catalog.max(literal_tier) * 30 + pg_catalog.round(pg_catalog.avg(literal_tier) * 10)::integer FROM term_scores)
+                                ELSE 1000
+                                    + COALESCE((SELECT pg_catalog.max(fuzzy_penalty) * 10 + pg_catalog.round(pg_catalog.avg(fuzzy_penalty))::integer FROM term_scores), 0)
+                            END
+                        FROM normalized n
                     $func$
                     """,
                     """
@@ -230,6 +455,7 @@ public class RecordsService {
                 "SELECT count(*) FROM (" + grouped + ") songs", parameters, Long.class);
         parameters.put("limit", query.size());
         parameters.put("offset", (long) query.page() * query.size());
+        parameters.put("query", query.search());
         String sql = """
                 SELECT s.id, s.title, s.artist, s.album, s.release_year, s.cover_url,
                        g.first_played, g.last_played, g.play_count
@@ -246,6 +472,13 @@ public class RecordsService {
     }
 
     private String libraryOrdering(RecordsQuery query) {
+        if (query.sort().equals("relevance")) {
+            if (query.search().isEmpty()) {
+                return "g.last_played DESC, s.id DESC";
+            }
+            return "public.f_song_search_rank(s.title, s.artist, s.album, :query) ASC, "
+                    + "g.last_played DESC, s.id DESC";
+        }
         String column = switch (query.sort()) {
             case "id" -> "s.id";
             case "title" -> "s.title";
@@ -349,10 +582,22 @@ public class RecordsService {
         List<String> conditions = new ArrayList<>();
         List<Object> arguments = new ArrayList<>();
         for (String term : query.search().split("\\s+")) {
-            conditions.add(LITERAL_TERM_CONDITION);
-            arguments.add(likePattern(term));
+            appendLiteralTermCondition(term, conditions, arguments);
         }
         return findSongIds(conditions, arguments);
+    }
+
+    private void appendLiteralTermCondition(
+            String term, List<String> conditions, List<Object> arguments) {
+        String pattern = likePattern(term);
+        if (isCompactCandidate(term)) {
+            conditions.add(LITERAL_OR_COMPACT_ARTIST_TERM_CONDITION);
+            arguments.add(pattern);
+            arguments.add(term);
+            return;
+        }
+        conditions.add(LITERAL_TERM_CONDITION);
+        arguments.add(pattern);
     }
 
     private List<Long> resolveFuzzySongIds(RecordsQuery query) {
@@ -413,9 +658,23 @@ public class RecordsService {
     }
 
     private boolean isFuzzyCandidate(String term) {
-        return term.length() >= 3
-                && !term.contains("%")
-                && !term.contains("_")
-                && !term.contains("\\");
+        return term.length() >= 3 && !hasLikeSpecialCharacters(term);
+    }
+
+    private boolean isCompactCandidate(String term) {
+        if (hasLikeSpecialCharacters(term)) {
+            return false;
+        }
+        int alphanumericCount = 0;
+        for (int i = 0; i < term.length(); i++) {
+            if (Character.isLetterOrDigit(term.charAt(i))) {
+                alphanumericCount++;
+            }
+        }
+        return alphanumericCount >= 2;
+    }
+
+    private boolean hasLikeSpecialCharacters(String term) {
+        return term.contains("%") || term.contains("_") || term.contains("\\");
     }
 }
