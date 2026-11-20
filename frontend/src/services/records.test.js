@@ -11,7 +11,12 @@ test('songs URL preserves browsing state and excludes channel and history filter
     assert.ok(recordsHash(state).startsWith('#/songs?'))
     assert.deepEqual(parseRecordsHash(recordsHash(state)), state)
     assert.equal(parseRecordsHash('#/songs?sort=channel').sort, 'lastPlayed')
-    assert.equal(updateRecordsState(state, { q: 'Pink Floyd' }).page, 0)
+    assert.equal(parseRecordsHash('#/songs?q=Sade').sort, 'relevance')
+    const searched = updateRecordsState(state, { q: 'Pink Floyd' })
+    assert.equal(searched.page, 0)
+    assert.equal(searched.sort, 'relevance')
+    assert.equal(updateRecordsState(searched, { sort: 'playCount', direction: 'desc' }).sort, 'playCount')
+    assert.equal(updateRecordsState(searched, { q: '' }).sort, 'lastPlayed')
 })
 
 test('records URL preserves filters, ordering, and page across refresh', () => {

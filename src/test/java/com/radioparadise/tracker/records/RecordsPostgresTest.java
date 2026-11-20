@@ -236,6 +236,104 @@ class RecordsPostgresTest {
     }
 
     @Test
+    void librarySearchRanksExactNamesAheadOfPrefixesSubstringsAndWeakerCorrections() {
+        Song sadeOlder = song("Smooth Operator", "0");
+        sadeOlder.setArtist("Sade");
+        sadeOlder.setAlbum("Diamond Life");
+        sadeOlder.setLastPlayed(Instant.parse("2026-11-01T08:00:00Z"));
+        Song sadeNewer = song("No Ordinary Love", "1");
+        sadeNewer.setArtist("Sade");
+        sadeNewer.setAlbum("Love Deluxe");
+        sadeNewer.setLastPlayed(Instant.parse("2026-11-01T10:00:00Z"));
+        Song sadeness = song("Sadeness", "0");
+        sadeness.setArtist("Enigma");
+        sadeness.setAlbum("MCMXC a.D.");
+        sadeness.setLastPlayed(Instant.parse("2026-11-01T12:00:00Z"));
+
+        Song thereThere = song("There There", "2");
+        thereThere.setArtist("Radiohead");
+        thereThere.setAlbum("Hail to the Thief");
+        thereThere.setLastPlayed(Instant.parse("2026-11-01T07:00:00Z"));
+        Song overThere = song("Over There", "0");
+        overThere.setArtist("Other Artist");
+        overThere.setLastPlayed(Instant.parse("2026-11-01T11:00:00Z"));
+        Song thereabouts = song("Thereabouts", "0");
+        thereabouts.setArtist("Other Artist");
+        thereabouts.setLastPlayed(Instant.parse("2026-11-01T11:30:00Z"));
+
+        Song acdc = song("Back in Black", "2");
+        acdc.setArtist("AC/DC");
+        acdc.setAlbum("Back in Black");
+
+        Song rem = song("Losing My Religion", "0");
+        rem.setArtist("R.E.M.");
+        rem.setAlbum("Out of Time");
+        rem.setLastPlayed(Instant.parse("2026-11-01T06:00:00Z"));
+        Song remember = song("Remember", "0");
+        remember.setArtist("Other Artist");
+        remember.setLastPlayed(Instant.parse("2026-11-01T11:00:00Z"));
+        Song jeremy = song("Jeremy", "2");
+        jeremy.setArtist("Pearl Jam");
+        jeremy.setLastPlayed(Instant.parse("2026-11-01T11:45:00Z"));
+
+        Song pinkFloyd = song("Comfortably Numb", "0");
+        pinkFloyd.setArtist("Pink Floyd");
+        pinkFloyd.setAlbum("The Wall");
+        pinkFloyd.setLastPlayed(Instant.parse("2026-11-01T05:00:00Z"));
+        Song flood = song("The Flood", "0");
+        flood.setArtist("Other Artist");
+        flood.setLastPlayed(Instant.parse("2026-11-01T12:00:00Z"));
+        Song fluid = song("Fluid Motion", "0");
+        fluid.setArtist("Another Artist");
+        fluid.setLastPlayed(Instant.parse("2026-11-01T12:30:00Z"));
+
+        songs.saveAll(
+                List.of(
+                        sadeOlder,
+                        sadeNewer,
+                        sadeness,
+                        thereThere,
+                        overThere,
+                        thereabouts,
+                        acdc,
+                        rem,
+                        remember,
+                        jeremy,
+                        pinkFloyd,
+                        flood,
+                        fluid));
+
+        assertThat(items(get("/api/songs/library?q=Sade")))
+                .extracting(row -> row.get("title"))
+                .containsExactly("No Ordinary Love", "Smooth Operator", "Sadeness");
+        assertThat(items(get("/api/songs/library?q=Sade&sort=lastPlayed&direction=desc")))
+                .extracting(row -> row.get("title"))
+                .containsExactly("Sadeness", "No Ordinary Love", "Smooth Operator");
+        assertThat(items(get("/api/songs/library?q=Sadeness")))
+                .extracting(row -> row.get("title"))
+                .containsExactly("Sadeness");
+
+        assertThat(items(get("/api/songs/library?q=There+There")))
+                .extracting(row -> row.get("title"))
+                .containsExactly("There There", "Over There", "Thereabouts");
+
+        assertThat(items(get("/api/songs/library?q=ACDC")))
+                .extracting(row -> row.get("artist"))
+                .containsExactly("AC/DC");
+        assertThat(items(get("/api/songs/library?q=AC%2FDC")))
+                .extracting(row -> row.get("artist"))
+                .containsExactly("AC/DC");
+
+        assertThat(items(get("/api/songs/library?q=REM")))
+                .extracting(row -> row.get("title"))
+                .containsExactly("Losing My Religion", "Remember", "Jeremy");
+
+        assertThat(items(get("/api/songs/library?q=Floid")))
+                .extracting(row -> row.get("artist"))
+                .startsWith("Pink Floyd");
+    }
+
+    @Test
     void libraryUsesCachedSnapshotsNoStoreAndValidatesQueries() {
         Song song = songs.save(song("Cached library", "1"));
         var response = http.get().uri("http://localhost:" + port + "/api/songs/library")
