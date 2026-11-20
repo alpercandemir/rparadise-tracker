@@ -1,12 +1,12 @@
 const sorts = {
     songs: ['relevance', 'id', 'title', 'artist', 'album', 'year', 'firstPlayed', 'lastPlayed', 'playCount'],
-    tracks: ['id', 'title', 'artist', 'album', 'year', 'channel', 'firstPlayed', 'lastPlayed', 'playCount'],
+    tracks: ['relevance', 'id', 'title', 'artist', 'album', 'year', 'channel', 'firstPlayed', 'lastPlayed', 'playCount'],
     plays: ['id', 'title', 'artist', 'album', 'year', 'channel', 'playedAt']
 }
 
 function defaultSort(tab, q = '', discovery = '') {
     if (tab === 'plays') return 'playedAt'
-    if (tab === 'songs' && q.trim()) return 'relevance'
+    if (q.trim()) return 'relevance'
     return discovery ? 'firstPlayed' : 'lastPlayed'
 }
 
@@ -48,8 +48,8 @@ export function updateRecordsState(state, patch) {
         next.direction = 'desc'
         next.from = ''
         next.to = ''
-    } else if (next.tab === 'songs' && Object.hasOwn(patch, 'q') && !Object.hasOwn(patch, 'sort')) {
-        next.sort = defaultSort('songs', next.q, next.discovery)
+    } else if (next.tab !== 'plays' && (Object.hasOwn(patch, 'q') || Object.hasOwn(patch, 'discovery')) && !Object.hasOwn(patch, 'sort')) {
+        next.sort = defaultSort(next.tab, next.q, next.discovery)
         next.direction = 'desc'
     }
     return next

@@ -42,20 +42,20 @@ current filters; null until the first event, and always null for tracks and the 
 | --- | --- |
 | `page` | Zero-based page, default 0, maximum 1000000 |
 | `size` | 25 (default), 50, or 100 |
-| `sort` | Track column, default `lastPlayed` (or `relevance` on `/api/songs/library` when `q` is non-empty); history defaults to `playedAt` |
+| `sort` | Track column, default `lastPlayed` (or `relevance` on `/api/songs/library` and `/api/records/tracks` when `q` is non-empty); history defaults to `playedAt` |
 | `direction` | `asc` or `desc` (default) |
 | `q` | Space-separated terms across title, artist, and album; case- and accent-insensitive; maximum 200 characters |
 | `channel` | `0` Main Mix, `1` Mellow Mix, `2` Rock Mix; omitted/empty means all |
 | `from`, `to` | Plays only: inclusive calendar dates, `YYYY-MM-DD`, in `timeZone` |
 | `timeZone` | Timezone for history date boundaries, e.g. `America/New_York` or `UTC`; omitted defaults to `Europe/Istanbul` for existing API clients. The UI explicitly sends the browser's timezone. |
 
-Track sort fields: `id`, `title`, `artist`, `album`, `year`, `channel`,
-`firstPlayed`, `lastPlayed`, `playCount`.
+Track sort fields: `relevance`, `id`, `title`, `artist`, `album`, `year`,
+`channel`, `firstPlayed`, `lastPlayed`, `playCount`.
 
 Play sort fields: `id`, `title`, `artist`, `album`, `year`, `channel`, `playedAt`.
-Library queries use the track parameters and sort fields except `channel`, plus
-`relevance`: nonempty channel filters and sorting by channel return HTTP 400.
-When `q` is non-empty and `sort` is omitted, library queries default to
+Library queries use the track parameters and sort fields except `channel`:
+nonempty channel filters and sorting by channel return HTTP 400.
+When `q` is non-empty and `sort` is omitted, library and track queries default to
 `relevance`, ranking exact artist and song title matches first, whole-word and
 prefix matches next, substring matches after that, and closer typo/phonetic
 corrections ahead of weaker ones, with `lastPlayed` and `id` breaking ties within

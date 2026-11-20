@@ -53,12 +53,17 @@ test('discoveries survive search, sorting, paging and URL round trips', () => {
 test('filter and sort changes reset pagination; tabs reset incompatible sorting and dates', () => {
     const state = parseRecordsHash('#/records?tab=plays&page=8&sort=playedAt&from=2026-11-01')
     assert.equal(updateRecordsState(state, { q: 'Muse' }).page, 0)
+    assert.equal(updateRecordsState(state, { q: 'Muse' }).sort, 'playedAt')
     assert.equal(updateRecordsState(state, { sort: 'artist', direction: 'asc' }).page, 0)
     assert.equal(updateRecordsState(state, { page: 3 }).page, 3)
     const tracks = updateRecordsState(state, { tab: 'tracks' })
     assert.equal(tracks.sort, 'lastPlayed')
     assert.equal(tracks.from, '')
     assert.equal(tracks.page, 0)
+    const searchedTracks = updateRecordsState(tracks, { q: 'Sade' })
+    assert.equal(searchedTracks.sort, 'relevance')
+    assert.equal(parseRecordsHash('#/records?tab=tracks&q=Sade').sort, 'relevance')
+    assert.equal(updateRecordsState(searchedTracks, { q: '' }).sort, 'lastPlayed')
 })
 
 test('timestamps convert absolute instants to the requested zone including day rollover', () => {

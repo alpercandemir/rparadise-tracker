@@ -167,9 +167,7 @@ function applyFilters() {
     error.value = 'From date must not be after To date.'
     return
   }
-  const ordering = draft.discovery !== state.value.discovery
-    ? { sort: draft.discovery ? 'firstPlayed' : 'lastPlayed', direction: 'desc' } : {}
-  change({ ...draft, ...ordering })
+  change({ ...draft })
 }
 
 function clearFilters() { change({ q: '', discovery: '', channel: '', from: '', to: '' }) }

@@ -306,6 +306,15 @@ class RecordsPostgresTest {
         assertThat(items(get("/api/songs/library?q=Sade")))
                 .extracting(row -> row.get("title"))
                 .containsExactly("No Ordinary Love", "Smooth Operator", "Sadeness");
+        assertThat(items(get("/api/records/tracks?q=Sade")))
+                .extracting(row -> row.get("title"))
+                .containsExactly("No Ordinary Love", "Smooth Operator", "Sadeness");
+        assertThat(items(get("/api/records/tracks?q=Sade&channel=0")))
+                .extracting(row -> row.get("title"))
+                .containsExactly("Smooth Operator", "Sadeness");
+        assertThat(items(get("/api/records/tracks?q=Sade&sort=lastPlayed&direction=desc")))
+                .extracting(row -> row.get("title"))
+                .containsExactly("Sadeness", "No Ordinary Love", "Smooth Operator");
         assertThat(items(get("/api/songs/library?q=Sade&sort=lastPlayed&direction=desc")))
                 .extracting(row -> row.get("title"))
                 .containsExactly("Sadeness", "No Ordinary Love", "Smooth Operator");
