@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.domain.Specification;
@@ -504,6 +505,9 @@ public class RecordsService {
         if (matchingSongIds != null && matchingSongIds.isEmpty()) {
             return RecordsPage.from(Page.empty(query.pageable(false)), null);
         }
+        if (query.sort().equals("relevance") && !query.search().isEmpty()) {
+            return loadTracksByRelevance(query, matchingSongIds);
+        }
         Specification<Song> filter =
                 (root, criteria, cb) -> {
                     List<Predicate> predicates =
@@ -512,6 +516,43 @@ public class RecordsService {
                 };
         return RecordsPage.from(
                 songRepository.findAll(filter, query.pageable(false)).map(TrackRecord::from), null);
+    }
+
+    private RecordsPage<TrackRecord> loadTracksByRelevance(
+            RecordsQuery query, List<Long> matchingSongIds) {
+        var jdbc = new NamedParameterJdbcTemplate(jdbcTemplate);
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("ids", matchingSongIds);
+        String where = " WHERE s.id IN (:ids)";
+        if (!query.channel().isEmpty()) {
+            where += " AND s.channel = :channel";
+            parameters.put("channel", query.channel());
+        }
+        long total =
+                jdbc.queryForObject(
+                        "SELECT count(*) FROM song s" + where, parameters, Long.class);
+        if (total == 0) {
+            return new RecordsPage<>(List.of(), query.page(), query.size(), 0, 0, null);
+        }
+        parameters.put("query", query.search());
+        parameters.put("limit", query.size());
+        parameters.put("offset", (long) query.page() * query.size());
+        List<Long> pageIds =
+                jdbc.queryForList(
+                        "SELECT s.id FROM song s"
+                                + where
+                                + " ORDER BY public.f_song_search_rank(s.title, s.artist, s.album, :query) ASC, "
+                                + "s.last_played DESC, s.id DESC LIMIT :limit OFFSET :offset",
+                        parameters,
+                        Long.class);
+        Map<Long, TrackRecord> tracksById = new HashMap<>();
+        for (Song song : songRepository.findAllById(pageIds)) {
+            tracksById.put(song.getId(), TrackRecord.from(song));
+        }
+        List<TrackRecord> items =
+                pageIds.stream().map(tracksById::get).filter(Objects::nonNull).toList();
+        int totalPages = (int) ((total + query.size() - 1) / query.size());
+        return new RecordsPage<>(items, query.page(), query.size(), total, totalPages, null);
     }
 
     public RecordsPage<PlaybackRecord> plays(RecordsQuery query) {

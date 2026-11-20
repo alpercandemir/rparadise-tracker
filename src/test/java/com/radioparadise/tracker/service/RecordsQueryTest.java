@@ -48,13 +48,18 @@ class RecordsQueryTest {
     @Test
     void defaultsKeepTrackAndPlaybackOrderingStable() {
         RecordsQuery tracks = RecordsQuery.parse(Map.of(), false);
+        RecordsQuery searchedTracks = RecordsQuery.parse(Map.of("q", "Sade"), false);
         RecordsQuery plays = RecordsQuery.parse(Map.of(), true);
+        RecordsQuery searchedPlays = RecordsQuery.parse(Map.of("q", "Sade"), true);
 
         assertThat(tracks.page()).isZero();
         assertThat(tracks.size()).isEqualTo(25);
         assertThat(tracks.timeZone()).isEqualTo(ZoneId.of("Europe/Istanbul"));
         assertThat(tracks.search()).isEmpty();
         assertThat(tracks.channel()).isEmpty();
+        assertThat(tracks.sort()).isEqualTo("lastPlayed");
+        assertThat(searchedTracks.sort()).isEqualTo("relevance");
+        assertThat(searchedPlays.sort()).isEqualTo("playedAt");
         assertThat(tracks.pageable(false).getSort())
                 .containsExactly(Sort.Order.desc("lastPlayed"), Sort.Order.desc("id"));
         assertThat(plays.pageable(true).getSort())

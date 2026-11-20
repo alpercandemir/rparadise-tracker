@@ -34,6 +34,7 @@ public record RecordsQuery(
                     "playCount");
     private static final Set<String> TRACK_SORTS =
             Set.of(
+                    "relevance",
                     "id",
                     "title",
                     "artist",
@@ -102,7 +103,7 @@ public record RecordsQuery(
         String defaultSort =
                 history
                         ? "playedAt"
-                        : (library && !search.isEmpty())
+                        : !search.isEmpty()
                                 ? "relevance"
                                 : newDiscoveries ? "firstPlayed" : "lastPlayed";
         String sort = parameters.getOrDefault("sort", defaultSort);
