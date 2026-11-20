@@ -4,9 +4,10 @@ const sorts = {
     plays: ['id', 'title', 'artist', 'album', 'year', 'channel', 'playedAt']
 }
 
-function defaultSort(tab, q = '') {
+function defaultSort(tab, q = '', discovery = '') {
     if (tab === 'plays') return 'playedAt'
-    return tab === 'songs' && q.trim() ? 'relevance' : 'lastPlayed'
+    if (tab === 'songs' && q.trim()) return 'relevance'
+    return discovery ? 'firstPlayed' : 'lastPlayed'
 }
 
 export function parseRecordsHash(hash) {
@@ -16,11 +17,13 @@ export function parseRecordsHash(hash) {
     const size = Number(params.get('size') || 25)
     const sort = params.get('sort')
     const q = (params.get('q') || '').slice(0, 200)
+    const discovery = tab === 'songs' && params.get('discovery') === '30d' ? '30d' : ''
     return {
         tab,
         page: Number.isInteger(page) && page >= 0 && page <= 1000000 ? page : 0,
         size: [25, 50, 100].includes(size) ? size : 25,
-        sort: sorts[tab].includes(sort) ? sort : defaultSort(tab, q),
+        sort: sorts[tab].includes(sort) ? sort : defaultSort(tab, q, discovery),
+        discovery,
         direction: params.get('direction') === 'asc' ? 'asc' : 'desc',
         q,
         channel: tab !== 'songs' && ['0', '1', '2'].includes(params.get('channel')) ? params.get('channel') : '',
@@ -40,12 +43,13 @@ export function recordsHash(state) {
 export function updateRecordsState(state, patch) {
     const next = { ...state, ...patch, page: Object.hasOwn(patch, 'page') ? patch.page : 0 }
     if (patch.tab && patch.tab !== state.tab) {
-        next.sort = defaultSort(patch.tab, next.q)
+        next.discovery = ''
+        next.sort = defaultSort(patch.tab, next.q, next.discovery)
         next.direction = 'desc'
         next.from = ''
         next.to = ''
     } else if (next.tab === 'songs' && Object.hasOwn(patch, 'q') && !Object.hasOwn(patch, 'sort')) {
-        next.sort = defaultSort('songs', next.q)
+        next.sort = defaultSort('songs', next.q, next.discovery)
         next.direction = 'desc'
     }
     return next

@@ -67,6 +67,8 @@
       </section>
 
       <!-- Charts -->
+      <NewDiscoveries @select-song="openSong" />
+
       <section class="charts-section">
         <div class="charts-grid">
           <div class="card chart-card">
@@ -99,6 +101,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import RecordsPage from './components/RecordsPage.vue'
+import NewDiscoveries from './components/NewDiscoveries.vue'
 import { radioParadiseAPI, CHANNELS } from './services/api.js'
 import CurrentSong from './components/CurrentSong.vue'
 import StatsCard from './components/StatsCard.vue'

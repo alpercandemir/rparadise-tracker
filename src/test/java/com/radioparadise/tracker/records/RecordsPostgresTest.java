@@ -8,6 +8,8 @@ import com.radioparadise.tracker.repository.PlaybackEventRepository;
 import com.radioparadise.tracker.repository.SongRepository;
 import com.radioparadise.tracker.scheduler.SongTrackerScheduler;
 import com.radioparadise.tracker.service.SongService;
+import com.radioparadise.tracker.service.RecordsQuery;
+import com.radioparadise.tracker.service.RecordsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -40,6 +42,7 @@ class RecordsPostgresTest {
     @Autowired SongRepository songs;
     @Autowired PlaybackEventRepository plays;
     @Autowired SongService service;
+    @Autowired RecordsService recordsService;
     @Autowired com.radioparadise.tracker.service.RecordingBackfillService backfill;
     @Autowired TransactionTemplate transactions;
     @Autowired Environment environment;
@@ -81,6 +84,74 @@ class RecordsPostgresTest {
         assertThat(items(page).get(0).get("timeSource")).isEqualTo("broadcast");
         assertThat(items(page).get(0).get("playedAt")).isEqualTo(broadcastAt.toString());
         assertThat(items(page).get(1).get("timeSource")).isEqualTo("observed");
+    }
+
+    @Test
+    void discoveriesUseAnInclusiveAbsoluteWindowAfterCombiningChannels() {
+        transactions.executeWithoutResult(status -> {
+            Instant now = jdbc.queryForObject("SELECT CURRENT_TIMESTAMP", java.sql.Timestamp.class).toInstant();
+            Instant cutoff = now.minus(java.time.Duration.ofDays(30));
+            Song boundary = song("At cutoff", "0");
+            boundary.setFirstPlayed(cutoff);
+            Song before = song("Before cutoff", "0");
+            before.setFirstPlayed(cutoff.minusNanos(1000));
+            Song future = song("Future", "0");
+            future.setFirstPlayed(now.plusNanos(1000));
+            Song newest = song("At now", "0");
+            newest.setFirstPlayed(now);
+            Song old = song("Old song on new channel", "0");
+            old.setFirstPlayed(cutoff.minusSeconds(1));
+            Song newChannel = song("Old song on new channel", "2");
+            newChannel.setFirstPlayed(now);
+            Song shared = song("At cutoff", "1");
+            shared.setFirstPlayed(now.minusSeconds(1));
+            shared.setPlayCount(4);
+            songs.saveAllAndFlush(List.of(boundary, before, future, newest, old, newChannel, shared));
+
+            var page = recordsService.library(RecordsQuery.parseLibrary(Map.of("discovery", "30d")));
+
+            assertThat(page.totalElements()).isEqualTo(2);
+            assertThat(page.items()).extracting(song -> song.title()).containsExactly("At now", "At cutoff");
+            assertThat(page.items().getLast().firstPlayed()).isEqualTo(cutoff);
+            assertThat(page.items().getLast().playCount()).isEqualTo(5);
+        });
+    }
+
+    @Test
+    void discoveriesFilterCountsSearchAndPaginationWithoutChangingTheFullLibrary() {
+        Instant recent = Instant.now().minusSeconds(3600);
+        List<Song> tracks = new ArrayList<>();
+        for (int i = 0; i < 31; i++) {
+            Song main = song("Discovery " + i, "0");
+            main.setFirstPlayed(recent);
+            Song mellow = song("Discovery " + i, "1");
+            mellow.setFirstPlayed(recent);
+            tracks.add(main);
+            tracks.add(mellow);
+        }
+        Song old = song("Older archive entry", "0");
+        old.setFirstPlayed(recent.minus(java.time.Duration.ofDays(31)));
+        tracks.add(old);
+        songs.saveAll(tracks);
+
+        Map<?, ?> first = get("/api/songs/library?discovery=30d");
+        Map<?, ?> second = get("/api/songs/library?discovery=30d&page=1");
+
+        assertThat(((Number) first.get("totalElements")).longValue()).isEqualTo(31);
+        assertThat(((Number) first.get("totalPages")).intValue()).isEqualTo(2);
+        assertThat(items(first)).hasSize(25);
+        assertThat(items(second)).hasSize(6);
+        assertThat(items(first).getFirst().get("title")).isEqualTo("Discovery 30");
+        assertThat(items(second).getLast().get("title")).isEqualTo("Discovery 0");
+        assertThat(items(first)).doesNotContainAnyElementsOf(items(second));
+        assertThat(items(get("/api/songs/library?discovery=30d&q=Older"))).isEmpty();
+        assertThat(items(get("/api/songs/library?discovery=30d&q=Discovery%2030"))).hasSize(1);
+        assertThat(items(get("/api/songs/library?discovery=30d&q=Discovry%2030"))).hasSize(1);
+        assertThat(((Number) get("/api/songs/library").get("totalElements")).longValue()).isEqualTo(32);
+        assertBadRequest("/api/songs/library?discovery=7d");
+        var response = http.get().uri("http://localhost:" + port + "/api/songs/library?discovery=30d")
+                .retrieve().toEntity(Map.class);
+        assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
     }
 
     @Test

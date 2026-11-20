@@ -19,7 +19,8 @@ public record RecordsQuery(
         String channel,
         LocalDate from,
         LocalDate to,
-        ZoneId timeZone) {
+        ZoneId timeZone,
+        boolean newDiscoveries) {
     private static final Set<String> LIBRARY_SORTS =
             Set.of(
                     "relevance",
@@ -46,13 +47,7 @@ public record RecordsQuery(
             Set.of("id", "title", "artist", "album", "year", "channel", "playedAt");
 
     public static RecordsQuery parseLibrary(Map<String, String> parameters) {
-        String search = parameters.getOrDefault("q", "").trim();
-        String defaultSort = search.isEmpty() ? "lastPlayed" : "relevance";
-        String sort = parameters.getOrDefault("sort", defaultSort);
-        if (!LIBRARY_SORTS.contains(sort)) {
-            throw new IllegalArgumentException("Unsupported sort field: " + sort);
-        }
-        RecordsQuery query = parse(parameters, false, sort, LIBRARY_SORTS);
+        RecordsQuery query = parse(parameters, false, true);
         if (!query.channel().isEmpty()) {
             throw new IllegalArgumentException("The song library combines all channels");
         }
@@ -60,17 +55,11 @@ public record RecordsQuery(
     }
 
     public static RecordsQuery parse(Map<String, String> parameters, boolean history) {
-        String defaultSort = history ? "playedAt" : "lastPlayed";
-        Set<String> supportedSorts = history ? PLAY_SORTS : TRACK_SORTS;
-        String sort = parameters.getOrDefault("sort", defaultSort);
-        return parse(parameters, history, sort, supportedSorts);
+        return parse(parameters, history, false);
     }
 
     private static RecordsQuery parse(
-            Map<String, String> parameters,
-            boolean history,
-            String sort,
-            Set<String> supportedSorts) {
+            Map<String, String> parameters, boolean history, boolean library) {
         int page = parseInteger(parameters, "page", 0);
         int size = parseInteger(parameters, "size", 25);
         if (page < 0 || page > 1_000_000) {
@@ -79,14 +68,17 @@ public record RecordsQuery(
         if (!Set.of(25, 50, 100).contains(size)) {
             throw new IllegalArgumentException("size must be 25, 50, or 100");
         }
-        if (!supportedSorts.contains(sort)) {
-            throw new IllegalArgumentException("Unsupported sort field: " + sort);
+        String discovery = library ? parameters.getOrDefault("discovery", "") : "";
+        if (!discovery.isEmpty() && !discovery.equals("30d")) {
+            throw new IllegalArgumentException("discovery must be 30d");
         }
-        Sort.Direction direction = parseDirection(parameters);
+        boolean newDiscoveries = discovery.equals("30d");
         String search = parameters.getOrDefault("q", "").trim();
         if (search.length() > 200) {
             throw new IllegalArgumentException("q must be at most 200 characters");
         }
+        String sort = parseSort(parameters, history, library, newDiscoveries, search);
+        Sort.Direction direction = parseDirection(parameters);
         String channel = parameters.getOrDefault("channel", "");
         if (!channel.isEmpty()) {
             RadioParadiseChannel.fromId(channel);
@@ -97,9 +89,30 @@ public record RecordsQuery(
             throw new IllegalArgumentException("from must not be after to");
         }
         ZoneId timeZone = parseTimeZone(parameters);
-        return new RecordsQuery(page, size, sort, direction, search, channel, from, to, timeZone);
+        return new RecordsQuery(page, size, sort, direction, search, channel, from, to,
+                timeZone, newDiscoveries);
     }
 
+    private static String parseSort(
+            Map<String, String> parameters,
+            boolean history,
+            boolean library,
+            boolean newDiscoveries,
+            String search) {
+        String defaultSort =
+                history
+                        ? "playedAt"
+                        : (library && !search.isEmpty())
+                                ? "relevance"
+                                : newDiscoveries ? "firstPlayed" : "lastPlayed";
+        String sort = parameters.getOrDefault("sort", defaultSort);
+        Set<String> supportedSorts =
+                history ? PLAY_SORTS : library ? LIBRARY_SORTS : TRACK_SORTS;
+        if (!supportedSorts.contains(sort)) {
+            throw new IllegalArgumentException("Unsupported sort field: " + sort);
+        }
+        return sort;
+    }
     private static Sort.Direction parseDirection(Map<String, String> parameters) {
         String direction = parameters.getOrDefault("direction", "desc");
         if (!Set.of("asc", "desc").contains(direction)) {
